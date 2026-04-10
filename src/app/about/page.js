@@ -1,9 +1,8 @@
 export default function About() {
   const team = [
-    { name: "Membre 1", role: "Co-fondateur & CEO", initials: "M1" },
-    { name: "Membre 2", role: "CTO & Ingénieur Principal", initials: "M2" },
-    { name: "Membre 3", role: "Designer UX/UI", initials: "M3" },
-    { name: "Membre 4", role: "Développeur Full-Stack", initials: "M4" },
+    { name: "Ahmed Kebir", role: "Co-fondateur & CEO", initials: "M1" },
+    { name: "Abdessamed Bendella", role: "Co-fondateur & CEO", initials: "M2" },
+  
   ];
 
   const goals = [
