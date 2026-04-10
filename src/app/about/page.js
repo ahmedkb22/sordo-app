@@ -1,7 +1,7 @@
 export default function About() {
   const team = [
-    { name: "Ahmed Kebir", role: "Co-fondateur & CEO", initials: "M1" },
-    { name: "Abdessamed Bendella", role: "Co-fondateur & CEO", initials: "M2" },
+    { name: "Ahmed Kebir", role: "Co-fondateur & CEO", initials: "AK" },
+    { name: "Abdessamed Bendella", role: "Co-fondateur & CEO", initials: "AB" },
   
   ];
 
