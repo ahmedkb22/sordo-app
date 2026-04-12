@@ -5,7 +5,7 @@
 import { useRef, useCallback } from 'react'
 
 const SEQUENCE_LENGTH = 30
-const API_URL = 'http://127.0.0.1:8000/api/predict/'
+const API_URL = 'https://sordo-backend2.onrender.com/api/predict/'
 
 export function useGestureDetector({ onDetected, onNoHand }) {
   const handsRef        = useRef(null)
