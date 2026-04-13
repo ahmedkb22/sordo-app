@@ -1,0 +1,163 @@
+/* ── Main wrapper ───────────────────────────────────────────── */
+.profile-main {
+  min-height: 100vh;
+  background: linear-gradient(160deg, #050a1e 0%, #0a1635 50%, #0d1f4a 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  padding-top: 88px;
+}
+
+/* ── Card ───────────────────────────────────────────────────── */
+.profile-card {
+  width: 100%;
+  max-width: 500px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(59, 130, 246, 0.15);
+  border-radius: 24px;
+  padding: 2.5rem 2rem;
+}
+
+/* ── Title ──────────────────────────────────────────────────── */
+.profile-title {
+  text-align: center;
+  color: white;
+  margin-bottom: 1.5rem;
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+/* ── Alert messages ─────────────────────────────────────────── */
+.profile-error {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 12px;
+  padding: 0.75rem;
+  color: #fca5a5;
+  margin-bottom: 1rem;
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+.profile-success {
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  border-radius: 12px;
+  padding: 0.75rem;
+  color: #86efac;
+  margin-bottom: 1rem;
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+/* ── Avatar ─────────────────────────────────────────────────── */
+.profile-avatar-wrap {
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+.profile-avatar {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #3b82f6;
+}
+
+/* ── Form fields ────────────────────────────────────────────── */
+.profile-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.profile-input {
+  width: 100%;
+  padding: 0.85rem 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: white;
+  font-size: 0.95rem;
+  outline: none;
+  transition: border-color 0.2s ease;
+  box-sizing: border-box;
+}
+
+.profile-input:focus {
+  border-color: rgba(59, 130, 246, 0.5);
+}
+
+.profile-input::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+/* ── Buttons ────────────────────────────────────────────────── */
+.profile-btn {
+  width: 100%;
+  padding: 0.9rem;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  border: none;
+  color: white;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 0.95rem;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.profile-btn:hover:not(:disabled) {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.profile-btn:disabled {
+  background: rgba(37, 99, 235, 0.5);
+  cursor: not-allowed;
+}
+
+/* ── Responsive ─────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .profile-main {
+    padding: 1.25rem;
+    padding-top: 88px;
+    align-items: flex-start;
+  }
+
+  .profile-card {
+    padding: 2rem 1.5rem;
+    border-radius: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .profile-main {
+    padding: 1rem;
+    padding-top: 80px;
+  }
+
+  .profile-card {
+    padding: 1.5rem 1.25rem;
+    border-radius: 16px;
+  }
+
+  .profile-avatar {
+    width: 80px;
+    height: 80px;
+  }
+
+  .profile-title {
+    font-size: 1.2rem;
+  }
+
+  .profile-input {
+    font-size: 0.9rem;
+    padding: 0.75rem 0.9rem;
+  }
+
+  .profile-btn {
+    padding: 0.8rem;
+    font-size: 0.9rem;
+  }
+}

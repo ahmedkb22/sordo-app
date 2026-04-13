@@ -1,0 +1,522 @@
+/* ===========================
+   friends.css — Sordo App
+   =========================== */
+
+/* ---------- Page Layout ---------- */
+.friends-page {
+  min-height: 100vh;
+  background: linear-gradient(160deg, #050a1e 0%, #0a1635 60%, #0d1f4a 100%);
+  color: white;
+  padding-top: 68px;
+}
+
+/* ---------- Background Glow ---------- */
+.friends-bg-glow {
+  position: fixed;
+  top: 10%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 600px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.08) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ---------- Toast ---------- */
+.friends-toast {
+  position: fixed;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  border-radius: 12px;
+  padding: 0.75rem 1.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  backdrop-filter: blur(8px);
+  white-space: nowrap;
+  transition: opacity 0.3s ease;
+}
+
+.friends-toast--success {
+  background: rgba(34, 197, 94, 0.15);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  color: #86efac;
+}
+
+.friends-toast--error {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+}
+
+/* ---------- Container ---------- */
+.friends-container {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem;
+  position: relative;
+  z-index: 1;
+}
+
+/* ---------- Header ---------- */
+.friends-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+  gap: 1rem;
+}
+
+.friends-header__title {
+  font-size: 1.8rem;
+  font-weight: 800;
+  margin: 0 0 0.2rem;
+  background: linear-gradient(135deg, #fff 0%, #93c5fd 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.friends-header__subtitle {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.35);
+  margin: 0;
+}
+
+.friends-back-btn {
+  padding: 0.55rem 1.1rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.friends-back-btn:hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+/* ---------- Cards ---------- */
+.friends-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 20px;
+  padding: 1.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.friends-card--requests {
+  background: rgba(239, 68, 68, 0.05);
+  border: 1px solid rgba(239, 68, 68, 0.15);
+}
+
+.friends-card__title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0 0 1rem;
+  color: rgba(255, 255, 255, 0.85);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* ---------- Search ---------- */
+.friends-search-row {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.friends-search-input {
+  flex: 1;
+  padding: 0.8rem 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: white;
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color 0.2s;
+  min-width: 0;
+}
+
+.friends-search-input::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.friends-search-input:focus {
+  border-color: rgba(59, 130, 246, 0.5);
+}
+
+.friends-search-btn {
+  padding: 0.8rem 1.4rem;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  border: none;
+  color: white;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.3);
+  white-space: nowrap;
+  transition: opacity 0.2s, box-shadow 0.2s;
+}
+
+.friends-search-btn:hover {
+  opacity: 0.9;
+  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.45);
+}
+
+.friends-search-loading {
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 0.85rem;
+  margin-top: 1rem;
+}
+
+/* ---------- User Row (shared by search results, requests, friends list) ---------- */
+.friends-user-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0.75rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 14px;
+  padding: 0.9rem 1rem;
+  gap: 0.75rem;
+}
+
+.friends-user-row--list {
+  margin-top: 0;
+  margin-bottom: 0.6rem;
+}
+
+.friends-user-row__left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.friends-user-row__info {
+  min-width: 0;
+}
+
+.friends-user-row__name {
+  margin: 0;
+  font-weight: 600;
+  font-size: 0.95rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.friends-user-row__role {
+  margin: 0;
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.friends-user-row__actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+/* ---------- Avatar ---------- */
+.friends-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: white;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.friends-avatar--blue {
+  background: linear-gradient(135deg, #1d4ed8, #2563eb);
+}
+
+.friends-avatar--purple {
+  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+}
+
+.friends-avatar--sm {
+  width: 38px;
+  height: 38px;
+  font-size: 0.8rem;
+}
+
+.friends-avatar__online-dot {
+  position: absolute;
+  bottom: 1px;
+  right: 1px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #22c55e;
+  border: 2px solid #050a1e;
+}
+
+/* ---------- Buttons (action) ---------- */
+.friends-btn {
+  padding: 0.5rem 1rem;
+  border-radius: 10px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.2s, filter 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  text-decoration: none;
+}
+
+.friends-btn:hover {
+  opacity: 0.85;
+  filter: brightness(1.1);
+}
+
+.friends-btn--add {
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  color: #93c5fd;
+}
+
+.friends-btn--accept {
+  background: rgba(34, 197, 94, 0.15);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  color: #86efac;
+}
+
+.friends-btn--decline {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: #fca5a5;
+}
+
+.friends-btn--call {
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  color: #93c5fd;
+}
+
+/* ---------- Requests Badge ---------- */
+.friends-badge {
+  background: #ef4444;
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+}
+
+/* ---------- Empty State ---------- */
+.friends-empty {
+  text-align: center;
+  padding: 2.5rem 1rem;
+}
+
+.friends-empty__icon {
+  font-size: 2.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.friends-empty__text {
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+/* ---------- Loading Screen ---------- */
+.friends-loading-screen {
+  min-height: 100vh;
+  background: linear-gradient(160deg, #050a1e 0%, #0a1635 50%, #0d1f4a 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.friends-loading-screen__inner {
+  text-align: center;
+}
+
+.friends-spinner {
+  width: 48px;
+  height: 48px;
+  border: 3px solid rgba(59, 130, 246, 0.3);
+  border-top: 3px solid #3b82f6;
+  border-radius: 50%;
+  animation: friends-spin 0.8s linear infinite;
+  margin: 0 auto 1rem;
+}
+
+@keyframes friends-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.friends-loading-screen__text {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.9rem;
+}
+
+/* ==============================================
+   RESPONSIVE — Tablet (max-width: 768px)
+   ============================================== */
+@media (max-width: 768px) {
+  .friends-container {
+    padding: 2rem 1.25rem;
+  }
+
+  .friends-header__title {
+    font-size: 1.5rem;
+  }
+
+  .friends-bg-glow {
+    width: 100%;
+    height: 300px;
+  }
+
+  .friends-card {
+    padding: 1.4rem;
+    border-radius: 16px;
+  }
+
+  .friends-search-btn {
+    padding: 0.8rem 1rem;
+    font-size: 0.85rem;
+  }
+}
+
+/* ==============================================
+   RESPONSIVE — Mobile (max-width: 480px)
+   ============================================== */
+@media (max-width: 480px) {
+  .friends-page {
+    padding-top: 60px;
+  }
+
+  .friends-container {
+    padding: 1.5rem 1rem;
+  }
+
+  .friends-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .friends-back-btn {
+    align-self: flex-start;
+    font-size: 0.8rem;
+    padding: 0.45rem 0.9rem;
+  }
+
+  .friends-header__title {
+    font-size: 1.35rem;
+  }
+
+  .friends-header__subtitle {
+    font-size: 0.8rem;
+  }
+
+  .friends-card {
+    padding: 1.1rem;
+    border-radius: 14px;
+    margin-bottom: 1rem;
+  }
+
+  .friends-search-row {
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  .friends-search-btn {
+    width: 100%;
+    justify-content: center;
+    padding: 0.75rem 1rem;
+  }
+
+  .friends-user-row {
+    padding: 0.75rem 0.85rem;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+
+  .friends-user-row__left {
+    flex: 1 1 auto;
+  }
+
+  .friends-user-row__actions {
+    flex: 0 0 auto;
+  }
+
+  .friends-btn {
+    padding: 0.45rem 0.8rem;
+    font-size: 0.78rem;
+  }
+
+  .friends-avatar {
+    width: 36px;
+    height: 36px;
+    font-size: 0.78rem;
+  }
+
+  .friends-avatar--sm {
+    width: 34px;
+    height: 34px;
+    font-size: 0.75rem;
+  }
+
+  .friends-toast {
+    font-size: 0.8rem;
+    padding: 0.65rem 1.1rem;
+    max-width: 90vw;
+    white-space: normal;
+    text-align: center;
+  }
+
+  .friends-card__title {
+    font-size: 0.95rem;
+  }
+
+  .friends-spinner {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+/* ==============================================
+   RESPONSIVE — Very small (max-width: 360px)
+   ============================================== */
+@media (max-width: 360px) {
+  .friends-btn--accept,
+  .friends-btn--decline {
+    padding: 0.4rem 0.65rem;
+    font-size: 0.74rem;
+  }
+
+  .friends-header__title {
+    font-size: 1.2rem;
+  }
+}

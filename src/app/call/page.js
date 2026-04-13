@@ -16,6 +16,7 @@ import {
   SINGLE_SIGN_PHRASES,
   SUBTITLE_DURATION,
 } from '../../components/PhraseEngine'
+import './call.css'
 
 const servers = {
   iceServers: [
@@ -41,7 +42,6 @@ function CallComponent() {
   const [signConfidence, setSignConf] = useState(0)
   const [copied, setCopied]           = useState(false)
 
-  // Subtitle / phrase
   const [gestureSubtitle, setGestureSubtitle] = useState(null)
   const [pendingSigns, setPendingSigns]         = useState([])
 
@@ -52,11 +52,11 @@ function CallComponent() {
   const messagesEndRef  = useRef(null)
   const router          = useRouter()
 
-  const lastSignRef       = useRef(null)
-  const callIdRef         = useRef('')
-  const userDataRef       = useRef(null)
-  const phraseEngineRef   = useRef(buildPhraseEngine())
-  const subtitleTimeout   = useRef(null)
+  const lastSignRef     = useRef(null)
+  const callIdRef       = useRef('')
+  const userDataRef     = useRef(null)
+  const phraseEngineRef = useRef(buildPhraseEngine())
+  const subtitleTimeout = useRef(null)
 
   useEffect(() => { callIdRef.current = callId },    [callId])
   useEffect(() => { userDataRef.current = userData }, [userData])
@@ -98,7 +98,6 @@ function CallComponent() {
           phraseEngineRef.current.clear()
         }, SUBTITLE_DURATION)
 
-        // Send to chat
         if (lastSignRef.current !== data.word) {
           lastSignRef.current = data.word
           const chatText = result.type !== 'raw'
@@ -290,48 +289,38 @@ function CallComponent() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  // ── Helper: derive bubble className ─────────────────────────
+  const getBubbleClass = (msg) => {
+    const isSelf = msg.sender === userData?.name
+    if (msg.isSign) return isSelf ? 'call-chat__msg-bubble--sign-self' : 'call-chat__msg-bubble--sign-other'
+    return isSelf ? 'call-chat__msg-bubble--text-self' : 'call-chat__msg-bubble--text-other'
+  }
+
+  // ── Control button sub-component ────────────────────────────
   const CtrlBtn = ({ onClick, active, danger, icon, label }) => (
-    <button onClick={onClick} style={{
-      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px',
-      padding: '0.75rem 1rem', borderRadius: '16px',
-      background: danger ? 'rgba(239,68,68,0.15)' : active ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.06)',
-      border: danger ? '1px solid rgba(239,68,68,0.3)' : active ? '1px solid rgba(59,130,246,0.35)' : '1px solid rgba(255,255,255,0.08)',
-      color: danger ? '#fca5a5' : active ? '#93c5fd' : 'rgba(255,255,255,0.75)',
-      cursor: 'pointer', transition: 'all 0.2s ease', minWidth: '72px',
-    }}>
-      <span style={{ fontSize: '1.4rem' }}>{icon}</span>
-      <span style={{ fontSize: '0.7rem', fontWeight: '600', letterSpacing: '0.03em' }}>{label}</span>
+    <button
+      onClick={onClick}
+      className={`call-ctrl-btn ${danger ? 'call-ctrl-btn--danger' : active ? 'call-ctrl-btn--active' : 'call-ctrl-btn--default'}`}
+    >
+      <span className="call-ctrl-btn__icon">{icon}</span>
+      <span className="call-ctrl-btn__label">{label}</span>
     </button>
   )
 
   return (
-    <main style={{
-      minHeight: '100vh',
-      background: 'linear-gradient(160deg, #050a1e 0%, #0a1635 60%, #0d1f4a 100%)',
-      color: 'white', paddingTop: '68px',
-    }}>
+    <main className="call-page">
       <canvas ref={canvasRef} style={{ display: 'none' }} />
 
-      <div aria-hidden style={{
-        position: 'fixed', top: '10%', left: '50%', transform: 'translateX(-50%)',
-        width: '700px', height: '400px',
-        background: 'radial-gradient(circle, rgba(59,130,246,0.07) 0%, transparent 70%)',
-        pointerEvents: 'none',
-      }} />
+      {/* Background glow */}
+      <div aria-hidden className="call-bg-glow" />
 
-      <div style={{ maxWidth: '960px', margin: '0 auto', padding: '2rem 1.5rem' }}>
+      <div className="call-container">
 
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+        <div className="call-header">
           <div>
-            <h1 style={{
-              fontSize: '1.6rem', fontWeight: '800', margin: '0 0 0.15rem',
-              background: 'linear-gradient(135deg, #fff 0%, #93c5fd 100%)',
-              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-            }}>
-              Appel vidéo
-            </h1>
-            <p style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.35)', margin: 0 }}>
+            <h1 className="call-header__title">Appel vidéo</h1>
+            <p className="call-header__status">
               {status === 'idle'      && 'Créez ou rejoignez un appel'}
               {status === 'calling'   && "⏳ En attente d'un ami..."}
               {status === 'joining'   && '🔗 Connexion en cours...'}
@@ -340,36 +329,25 @@ function CallComponent() {
             </p>
           </div>
           {status !== 'idle' && status !== 'ended' && (
-            <button onClick={endCall} style={{
-              padding: '0.6rem 1.25rem', borderRadius: '12px',
-              background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)',
-              color: '#fca5a5', fontSize: '0.875rem', fontWeight: '700', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: '0.4rem',
-            }}>
+            <button onClick={endCall} className="call-header__end-btn">
               📵 Terminer
             </button>
           )}
         </div>
 
-        {/* Friend left */}
+        {/* Friend left banner */}
         {friendLeft && (
-          <div style={{
-            background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
-            borderRadius: '20px', padding: '1.5rem', marginBottom: '1.5rem', textAlign: 'center',
-          }}>
-            <p style={{ fontSize: '1.1rem', fontWeight: '700', marginBottom: '1rem' }}>👋 Votre ami a quitté l'appel</p>
-            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-              <button onClick={() => { setFriendLeft(false); setStatus('idle'); setCallId('') }} style={{
-                padding: '0.65rem 1.5rem', borderRadius: '12px',
-                background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', border: 'none',
-                color: 'white', fontSize: '0.9rem', fontWeight: '700', cursor: 'pointer',
-              }}>🔄 Nouvel appel</button>
-              <Link href="/dashboard" style={{ textDecoration: 'none' }}>
-                <button style={{
-                  padding: '0.65rem 1.5rem', borderRadius: '12px',
-                  background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
-                  color: 'rgba(255,255,255,0.7)', fontSize: '0.9rem', fontWeight: '700', cursor: 'pointer',
-                }}>🏠 Dashboard</button>
+          <div className="call-friend-left">
+            <p className="call-friend-left__title">👋 Votre ami a quitté l'appel</p>
+            <div className="call-friend-left__actions">
+              <button
+                onClick={() => { setFriendLeft(false); setStatus('idle'); setCallId('') }}
+                className="call-friend-left__btn--new"
+              >
+                🔄 Nouvel appel
+              </button>
+              <Link href="/dashboard" className="call-friend-left__btn--dashboard">
+                🏠 Dashboard
               </Link>
             </div>
           </div>
@@ -377,82 +355,62 @@ function CallComponent() {
 
         {/* Videos */}
         {(status === 'connected' || status === 'calling' || status === 'joining') && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.25rem', height: '400px' }}>
+          <div className="call-videos">
 
             {/* Local video */}
-            <div style={{
-              position: 'relative', borderRadius: '20px', overflow: 'hidden',
-              background: '#0a1230', border: '1px solid rgba(59,130,246,0.15)',
-            }}>
-              <video ref={localVideoRef} autoPlay muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <div className="call-video-tile call-video-tile--local">
+              <video ref={localVideoRef} autoPlay muted playsInline />
 
               {/* Name tag */}
-              <div style={{
-                position: 'absolute', bottom: gestureSubtitle ? '56px' : '0.75rem', left: '0.75rem',
-                background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
-                padding: '0.3rem 0.7rem', borderRadius: '8px', fontSize: '0.78rem', fontWeight: '600',
-                transition: 'bottom 0.25s ease',
-              }}>
+              <div
+                className="call-video-tile__nametag"
+                style={{ bottom: gestureSubtitle ? '56px' : '0.75rem' }}
+              >
                 🟢 {userData?.name || 'Vous'}
               </div>
 
               {/* Gesture subtitle */}
               {gestureSubtitle && (
-                <div style={{
-                  position: 'absolute', bottom: 0, left: 0, right: 0,
-                  padding: '0.5rem 0.85rem',
-                  background: subtitleStyle(gestureSubtitle.type).bg,
-                  backdropFilter: 'blur(6px)',
-                  borderTop: `1px solid ${subtitleStyle(gestureSubtitle.type).border}`,
-                  display: 'flex', alignItems: 'center', gap: '0.5rem',
-                  animation: 'fadeSlideUp 0.2s ease',
-                }}>
-                  <span style={{ fontSize: '1rem' }}>🤟</span>
-                  <span style={{ fontSize: '0.9rem', fontWeight: '700', flex: 1, lineHeight: '1.3' }}>
-                    {gestureSubtitle.text}
-                  </span>
-                  <span style={{
-                    fontSize: '0.6rem', fontWeight: '700', opacity: 0.75,
-                    background: 'rgba(0,0,0,0.3)', borderRadius: '4px',
-                    padding: '1px 5px', letterSpacing: '0.05em',
-                  }}>
-                    {gestureSubtitle.type === 'combo' && 'COMBO'}
+                <div
+                  className="call-video-tile__subtitle"
+                  style={{
+                    background: subtitleStyle(gestureSubtitle.type).bg,
+                    borderTop: `1px solid ${subtitleStyle(gestureSubtitle.type).border}`,
+                  }}
+                >
+                  <span className="call-video-tile__subtitle-emoji">🤟</span>
+                  <span className="call-video-tile__subtitle-text">{gestureSubtitle.text}</span>
+                  <span className="call-video-tile__subtitle-tag">
+                    {gestureSubtitle.type === 'combo'  && 'COMBO'}
                     {gestureSubtitle.type === 'single' && 'PHRASE'}
-                    {gestureSubtitle.type === 'raw' && 'SIGNE'}
+                    {gestureSubtitle.type === 'raw'    && 'SIGNE'}
                   </span>
                 </div>
               )}
 
               {/* Pending combo signs */}
               {detecting && pendingSigns.length > 0 && !gestureSubtitle && (
-                <div style={{
-                  position: 'absolute', bottom: '0.75rem', right: '0.75rem',
-                  display: 'flex', gap: '4px', alignItems: 'center',
-                }}>
+                <div className="call-video-tile__pending">
                   {pendingSigns.map((s, i) => (
-                    <span key={i} style={{
-                      background: 'rgba(59,130,246,0.25)', border: '1px solid rgba(59,130,246,0.4)',
-                      borderRadius: '4px', padding: '1px 5px',
-                      fontSize: '0.68rem', fontWeight: '700',
-                    }}>{s}</span>
+                    <span key={i} className="call-video-tile__pending-sign">{s}</span>
                   ))}
-                  <span style={{ fontSize: '0.7rem', opacity: 0.5 }}>...</span>
+                  <span className="call-video-tile__pending-dots">...</span>
                 </div>
               )}
 
               {/* Detection badge */}
               {detecting && (
-                <div style={{ position: 'absolute', top: '0.75rem', left: '0.75rem', right: '0.75rem' }}>
+                <div className="call-video-tile__detection">
                   {signWord ? (
-                    <div style={{ background: 'rgba(34,197,94,0.85)', backdropFilter: 'blur(4px)', padding: '0.5rem 0.75rem', borderRadius: '10px', fontSize: '0.85rem', fontWeight: '800', textAlign: 'center' }}>
+                    <div className="call-detection-badge call-detection-badge--detected">
                       🤟 {signWord.toUpperCase()} — {signConfidence}%
                     </div>
                   ) : signConfidence > 0 ? (
-                    <div style={{ background: 'rgba(234,179,8,0.8)', backdropFilter: 'blur(4px)', padding: '0.4rem 0.75rem', borderRadius: '10px', fontSize: '0.75rem', textAlign: 'center' }}>
+                    <div className="call-detection-badge call-detection-badge--low">
                       Aucun signe ({signConfidence}%)
                     </div>
                   ) : (
-                    <div style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)', padding: '0.4rem 0.75rem', borderRadius: '10px', fontSize: '0.75rem', textAlign: 'center', color: 'rgba(255,255,255,0.5)' }}>
+                    <div className="call-detection-badge call-detection-badge--idle">
                       👋 Montrez un signe...
                     </div>
                   )}
@@ -461,33 +419,21 @@ function CallComponent() {
             </div>
 
             {/* Remote video */}
-            <div style={{
-              position: 'relative', borderRadius: '20px', overflow: 'hidden',
-              background: '#0a1230', border: '1px solid rgba(255,255,255,0.07)',
-            }}>
-              <video ref={remoteVideoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              <div style={{
-                position: 'absolute', bottom: '0.75rem', left: '0.75rem',
-                background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
-                padding: '0.3rem 0.7rem', borderRadius: '8px', fontSize: '0.78rem', fontWeight: '600',
-              }}>
+            <div className="call-video-tile call-video-tile--remote">
+              <video ref={remoteVideoRef} autoPlay playsInline />
+              <div className="call-video-tile__nametag" style={{ bottom: '0.75rem' }}>
                 {status === 'connected' ? '🟢 Ami' : '⏳ En attente...'}
               </div>
               {messages.filter(m => m.isSign).slice(-1).map(msg =>
                 msg.sender !== userData?.name && (
-                  <div key={msg.id} style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>
-                    <div style={{
-                      background: 'rgba(124,58,237,0.85)', backdropFilter: 'blur(4px)',
-                      padding: '0.5rem 0.75rem', fontSize: '0.85rem', fontWeight: '800', textAlign: 'center',
-                    }}>
-                      {msg.text}
-                    </div>
+                  <div key={msg.id} className="call-video-tile__remote-sign">
+                    <div className="call-video-tile__remote-sign-inner">{msg.text}</div>
                   </div>
                 )
               )}
               {friendLeft && (
-                <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <p style={{ fontSize: '1.1rem', fontWeight: '700' }}>👋 L'ami a quitté</p>
+                <div className="call-video-tile__left-overlay">
+                  <p>👋 L'ami a quitté</p>
                 </div>
               )}
             </div>
@@ -496,50 +442,51 @@ function CallComponent() {
 
         {/* Controls */}
         {status === 'connected' && (
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
-            <CtrlBtn onClick={toggleMic}       active={!micOn}    danger={!micOn}    icon={micOn ? '🎙️' : '🔇'}    label={micOn ? 'Muet' : 'Son'} />
-            <CtrlBtn onClick={toggleCamera}    active={!cameraOn} danger={!cameraOn} icon={cameraOn ? '📹' : '📷'} label={cameraOn ? 'Cam off' : 'Cam on'} />
-            <CtrlBtn onClick={shareScreen}     active={sharing}                      icon="🖥️"                      label={sharing ? 'Arrêter' : 'Partager'} />
-            <div style={{ position: 'relative' }}>
+          <div className="call-controls">
+            <CtrlBtn onClick={toggleMic}    active={!micOn}    danger={!micOn}    icon={micOn ? '🎙️' : '🔇'}    label={micOn ? 'Muet' : 'Son'} />
+            <CtrlBtn onClick={toggleCamera} active={!cameraOn} danger={!cameraOn} icon={cameraOn ? '📹' : '📷'} label={cameraOn ? 'Cam off' : 'Cam on'} />
+            <CtrlBtn onClick={shareScreen}  active={sharing}                      icon="🖥️"                      label={sharing ? 'Arrêter' : 'Partager'} />
+            <div className="call-ctrl-wrapper">
               <CtrlBtn onClick={() => setChatOpen(p => !p)} active={chatOpen} icon="💬" label="Chat" />
               {messages.length > 0 && !chatOpen && (
-                <span style={{
-                  position: 'absolute', top: '-4px', right: '-4px',
-                  background: '#ef4444', color: 'white', fontSize: '0.65rem', fontWeight: '700',
-                  width: '18px', height: '18px', borderRadius: '50%',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>{messages.length}</span>
+                <span className="call-ctrl-badge">{messages.length}</span>
               )}
             </div>
             <CtrlBtn onClick={toggleFullscreen} icon={isFullscreen ? '🔲' : '⛶'} label={isFullscreen ? 'Quitter' : 'Plein écran'} />
-            <CtrlBtn onClick={startDetection}  active={detecting}                  icon="🤟"                      label={detecting ? 'Actif' : 'Détecter'} />
-            <CtrlBtn onClick={endCall}         danger                              icon="📵"                      label="Terminer" />
+            <CtrlBtn onClick={startDetection}   active={detecting}                icon="🤟"                      label={detecting ? 'Actif' : 'Détecter'} />
+            <CtrlBtn onClick={endCall}          danger                            icon="📵"                      label="Terminer" />
           </div>
         )}
 
-        {/* Idle */}
+        {/* Idle — Create / Join */}
         {status === 'idle' && !friendLeft && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem' }}>
-            <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '20px', padding: '2rem', textAlign: 'center' }}>
-              <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.6rem', margin: '0 auto 1rem' }}>📞</div>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: '700', marginBottom: '0.4rem' }}>Créer un appel</h3>
-              <p style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.4)', marginBottom: '1.5rem', lineHeight: '1.6' }}>Générez un ID et partagez-le avec votre ami.</p>
-              <button onClick={createCall} style={{ width: '100%', padding: '0.85rem', borderRadius: '14px', background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', border: 'none', color: 'white', fontSize: '0.95rem', fontWeight: '700', cursor: 'pointer', boxShadow: '0 6px 20px rgba(37,99,235,0.3)' }}>
+          <div className="call-idle-grid">
+
+            {/* Create */}
+            <div className="call-idle-card">
+              <div className="call-idle-card__icon call-idle-card__icon--blue">📞</div>
+              <h3 className="call-idle-card__title">Créer un appel</h3>
+              <p className="call-idle-card__desc">Générez un ID et partagez-le avec votre ami.</p>
+              <button onClick={createCall} className="call-idle-card__btn call-idle-card__btn--create">
                 Créer l'appel
               </button>
             </div>
-            <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '20px', padding: '2rem', textAlign: 'center' }}>
-              <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.6rem', margin: '0 auto 1rem' }}>🤝</div>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: '700', marginBottom: '0.4rem' }}>Rejoindre un appel</h3>
-              <p style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.4)', marginBottom: '1rem', lineHeight: '1.6' }}>Collez l'ID partagé par votre ami.</p>
+
+            {/* Join */}
+            <div className="call-idle-card">
+              <div className="call-idle-card__icon call-idle-card__icon--green">🤝</div>
+              <h3 className="call-idle-card__title">Rejoindre un appel</h3>
+              <p className="call-idle-card__desc call-idle-card__desc--join">
+                Collez l'ID partagé par votre ami.
+              </p>
               <input
-                type="text" placeholder="Coller l'ID ici..." value={callId}
+                type="text"
+                placeholder="Coller l'ID ici..."
+                value={callId}
                 onChange={(e) => setCallId(e.target.value)}
-                style={{ width: '100%', padding: '0.8rem 1rem', marginBottom: '0.75rem', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: 'white', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }}
-                onFocus={(e) => e.target.style.borderColor = 'rgba(59,130,246,0.5)'}
-                onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
+                className="call-idle-card__input"
               />
-              <button onClick={joinCall} style={{ width: '100%', padding: '0.85rem', borderRadius: '14px', background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)', color: '#86efac', fontSize: '0.95rem', fontWeight: '700', cursor: 'pointer' }}>
+              <button onClick={joinCall} className="call-idle-card__btn call-idle-card__btn--join">
                 Rejoindre
               </button>
             </div>
@@ -548,72 +495,62 @@ function CallComponent() {
 
         {/* Waiting */}
         {status === 'calling' && (
-          <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '20px', padding: '2rem', textAlign: 'center' }}>
-            <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.95rem', marginBottom: '1rem' }}>⏳ En attente d'un ami...</p>
-            <p style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.35)', marginBottom: '0.5rem' }}>Partagez cet ID :</p>
-            <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', padding: '0.75rem 1rem', marginBottom: '0.75rem' }}>
-              <p style={{ fontFamily: 'monospace', fontSize: '0.85rem', color: '#60a5fa', margin: 0, wordBreak: 'break-all' }}>{callId}</p>
+          <div className="call-waiting">
+            <p className="call-waiting__label">⏳ En attente d'un ami...</p>
+            <p className="call-waiting__id-label">Partagez cet ID :</p>
+            <div className="call-waiting__id-box">
+              <p className="call-waiting__id-text">{callId}</p>
             </div>
-            <button onClick={handleCopy} style={{
-              padding: '0.6rem 1.5rem', borderRadius: '12px',
-              background: copied ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.06)',
-              border: copied ? '1px solid rgba(34,197,94,0.3)' : '1px solid rgba(255,255,255,0.1)',
-              color: copied ? '#86efac' : 'rgba(255,255,255,0.65)',
-              fontSize: '0.85rem', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s ease',
-            }}>
+            <button
+              onClick={handleCopy}
+              className={`call-waiting__copy-btn ${copied ? 'call-waiting__copy-btn--copied' : 'call-waiting__copy-btn--default'}`}
+            >
               {copied ? "✓ Copié !" : "📋 Copier l'ID"}
             </button>
           </div>
         )}
+
       </div>
 
       {/* Floating Chat */}
       {status === 'connected' && chatOpen && (
-        <div style={{
-          position: 'fixed', bottom: '1.5rem', right: '1.5rem', width: '320px', zIndex: 100,
-          background: 'rgba(10,18,48,0.95)', backdropFilter: 'blur(12px)',
-          border: '1px solid rgba(59,130,246,0.2)', borderRadius: '20px',
-          overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
-        }}>
-          <div style={{ padding: '0.85rem 1rem', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.03)' }}>
-            <p style={{ margin: 0, fontWeight: '700', fontSize: '0.9rem' }}>💬 Chat</p>
-            <button onClick={() => setChatOpen(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', fontSize: '1rem', cursor: 'pointer' }}>✕</button>
+        <div className="call-chat">
+          <div className="call-chat__header">
+            <p className="call-chat__header-title">💬 Chat</p>
+            <button onClick={() => setChatOpen(false)} className="call-chat__close-btn">✕</button>
           </div>
-          <div style={{ height: '260px', overflowY: 'auto', padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            {messages.length === 0 && <p style={{ color: 'rgba(255,255,255,0.25)', fontSize: '0.8rem', textAlign: 'center', marginTop: '2rem' }}>Aucun message...</p>}
+
+          <div className="call-chat__messages">
+            {messages.length === 0 && (
+              <p className="call-chat__empty">Aucun message...</p>
+            )}
             {messages.map(msg => (
-              <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.sender === userData?.name ? 'flex-end' : 'flex-start' }}>
-                <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.35)', marginBottom: '2px' }}>{msg.sender}</span>
-                <div style={{
-                  padding: '0.45rem 0.85rem', borderRadius: '14px', fontSize: '0.85rem', maxWidth: '220px', wordBreak: 'break-word',
-                  background: msg.isSign ? (msg.sender === userData?.name ? 'rgba(34,197,94,0.2)' : 'rgba(124,58,237,0.2)') : (msg.sender === userData?.name ? 'rgba(37,99,235,0.35)' : 'rgba(255,255,255,0.08)'),
-                  border: msg.isSign ? (msg.sender === userData?.name ? '1px solid rgba(34,197,94,0.25)' : '1px solid rgba(124,58,237,0.25)') : '1px solid rgba(255,255,255,0.07)',
-                  color: 'white',
-                }}>{msg.text}</div>
+              <div
+                key={msg.id}
+                className={`call-chat__msg ${msg.sender === userData?.name ? 'call-chat__msg--self' : 'call-chat__msg--other'}`}
+              >
+                <span className="call-chat__msg-sender">{msg.sender}</span>
+                <div className={`call-chat__msg-bubble ${getBubbleClass(msg)}`}>
+                  {msg.text}
+                </div>
               </div>
             ))}
             <div ref={messagesEndRef} />
           </div>
-          <div style={{ padding: '0.75rem', borderTop: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: '0.5rem' }}>
+
+          <div className="call-chat__footer">
             <input
-              type="text" placeholder="Écrire un message..." value={newMessage}
+              type="text"
+              placeholder="Écrire un message..."
+              value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-              style={{ flex: 1, padding: '0.6rem 0.85rem', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', color: 'white', fontSize: '0.85rem', outline: 'none' }}
-              onFocus={(e) => e.target.style.borderColor = 'rgba(59,130,246,0.5)'}
-              onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
+              className="call-chat__input"
             />
-            <button onClick={sendMessage} style={{ padding: '0.6rem 0.9rem', borderRadius: '10px', background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', border: 'none', color: 'white', fontSize: '0.9rem', cursor: 'pointer' }}>➤</button>
+            <button onClick={sendMessage} className="call-chat__send-btn">➤</button>
           </div>
         </div>
       )}
-
-      <style>{`
-        @keyframes fadeSlideUp {
-          from { opacity: 0; transform: translateY(8px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
     </main>
   )
 }

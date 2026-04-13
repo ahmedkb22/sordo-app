@@ -1,5 +1,6 @@
 'use client'
 import Link from 'next/link'
+import './contact.css'
 
 export default function Contact() {
   const socials = [
@@ -62,132 +63,49 @@ export default function Contact() {
         </svg>
       ),
     },
-  ];
+  ]
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        background: "linear-gradient(160deg, #050a1e 0%, #0a1635 60%, #0d1f4a 100%)",
-        color: "white",
-        paddingTop: "68px",
-      }}
-    >
-      <section
-        style={{
-          padding: "5rem 1.5rem 2rem",
-          textAlign: "center",
-          maxWidth: "600px",
-          margin: "0 auto",
-        }}
-      >
-        <span
-          style={{
-            display: "inline-block",
-            background: "rgba(59,130,246,0.12)",
-            border: "1px solid rgba(59,130,246,0.3)",
-            borderRadius: "999px",
-            padding: "0.35rem 1rem",
-            fontSize: "0.75rem",
-            fontWeight: "600",
-            color: "#93c5fd",
-            letterSpacing: "0.1em",
-            textTransform: "uppercase",
-            marginBottom: "1.5rem",
-          }}
-        >
-          Rejoignez-nous
-        </span>
-        <h1
-          style={{
-            fontSize: "clamp(2rem, 5vw, 3rem)",
-            fontWeight: "800",
-            background: "linear-gradient(135deg, #fff 0%, #93c5fd 100%)",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-            marginBottom: "1rem",
-          }}
-        >
-          Contactez-nous
-        </h1>
-        <p
-          style={{
-            fontSize: "1rem",
-            color: "rgba(255,255,255,0.45)",
-            lineHeight: "1.8",
-            marginBottom: "3rem",
-          }}
-        >
+    <main className="contact-main">
+
+      {/* ── Hero ── */}
+      <section className="contact-hero">
+        <span className="contact-badge">Rejoignez-nous</span>
+        <h1 className="contact-title">Contactez-nous</h1>
+        <p className="contact-desc">
           Une question ? Une idée ? On adore entendre les gens.
           Suivez-nous sur nos réseaux ou envoyez-nous un email directement.
         </p>
       </section>
 
-      {/* Socials Grid */}
-      <section
-        style={{
-          maxWidth: "800px",
-          margin: "0 auto",
-          padding: "0 1.5rem 6rem",
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-          gap: "1rem",
-        }}
-      >
+      {/* ── Socials Grid ── */}
+      <section className="socials-section">
         {socials.map((s) => (
           <a
             key={s.name}
             href={s.href}
             target="_blank"
             rel="noopener noreferrer"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "1rem",
-              background: "rgba(255,255,255,0.03)",
-              border: "1px solid rgba(255,255,255,0.07)",
-              borderRadius: "16px",
-              padding: "1.25rem 1.5rem",
-              textDecoration: "none",
-              color: "white",
-              transition: "all 0.2s ease",
-              cursor: "pointer",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = "rgba(59,130,246,0.08)";
-              e.currentTarget.style.borderColor = "rgba(59,130,246,0.25)";
-              e.currentTarget.style.transform = "translateY(-2px)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "rgba(255,255,255,0.03)";
-              e.currentTarget.style.borderColor = "rgba(255,255,255,0.07)";
-              e.currentTarget.style.transform = "translateY(0)";
-            }}
+            className="social-card"
           >
             <div
+              className="social-icon-wrap"
               style={{
-                width: "44px",
-                height: "44px",
-                borderRadius: "12px",
                 background: `${s.color}18`,
                 border: `1px solid ${s.color}40`,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
                 color: s.color,
-                flexShrink: 0,
               }}
             >
               {s.icon}
             </div>
-            <div>
-              <p style={{ margin: 0, fontWeight: "600", fontSize: "0.95rem" }}>{s.name}</p>
-              <p style={{ margin: 0, fontSize: "0.8rem", color: "rgba(255,255,255,0.4)" }}>
-                {s.handle}
-              </p>
+
+            <div className="social-info">
+              <p className="social-name">{s.name}</p>
+              <p className="social-handle">{s.handle}</p>
             </div>
+
             <svg
-              style={{ marginLeft: "auto", opacity: 0.3 }}
+              className="social-arrow"
               width="16"
               height="16"
               viewBox="0 0 16 16"
@@ -198,6 +116,7 @@ export default function Contact() {
           </a>
         ))}
       </section>
+
     </main>
-  );
+  )
 }
