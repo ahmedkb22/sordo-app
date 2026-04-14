@@ -42,6 +42,7 @@ function CallComponent() {
   const [signWord, setSignWord]       = useState(null)
   const [signConfidence, setSignConf] = useState(0)
   const [copied, setCopied]           = useState(false)
+  const [showLangMenu, setShowLangMenu] = useState(false)
 
   const [gestureSubtitle, setGestureSubtitle] = useState(null)
   const [pendingSigns, setPendingSigns]         = useState([])
@@ -76,7 +77,36 @@ function CallComponent() {
   }, [])
 
   // ── Voice subtitles hook ────────────────────────────────────
-  const { subtitle: voiceSubtitle, startVoice, stopVoice, voiceActive } = useVoiceSubtitles()
+  const { 
+    subtitle: voiceSubtitle, 
+    startVoice, 
+    stopVoice, 
+    voiceActive,
+    changeLanguage,
+    selectedLang 
+  } = useVoiceSubtitles()
+
+  // Send voice subtitles to chat for friend to see
+  const sendVoiceSubtitleToChat = async (text, isFinal) => {
+    const currentCallId   = callIdRef.current
+    const currentUserData = userDataRef.current
+    if (!currentCallId || !text || !isFinal) return // Only send final subtitles
+    try {
+      await addDoc(collection(doc(db, 'calls', currentCallId), 'messages'), {
+        text: `🎤 ${text}`,
+        sender: currentUserData?.name || 'You',
+        createdAt: new Date().toISOString(),
+        isVoice: true, // Mark as voice message
+      })
+    } catch (e) { console.log('Send voice subtitle error:', e) }
+  }
+
+  // Effect to send voice subtitles to chat when they're finalized
+  useEffect(() => {
+    if (voiceSubtitle && voiceSubtitle.isFinal && voiceSubtitle.text && status === 'connected') {
+      sendVoiceSubtitleToChat(voiceSubtitle.text, voiceSubtitle.isFinal)
+    }
+  }, [voiceSubtitle, status])
 
   // ── Gesture callbacks ───────────────────────────────────────
   const handleNoHand = useCallback(() => {
@@ -298,6 +328,7 @@ function CallComponent() {
   const getBubbleClass = (msg) => {
     const isSelf = msg.sender === userData?.name
     if (msg.isSign) return isSelf ? 'call-chat__msg-bubble--sign-self' : 'call-chat__msg-bubble--sign-other'
+    if (msg.isVoice) return isSelf ? 'call-chat__msg-bubble--voice-self' : 'call-chat__msg-bubble--voice-other'
     return isSelf ? 'call-chat__msg-bubble--text-self' : 'call-chat__msg-bubble--text-other'
   }
 
@@ -429,6 +460,18 @@ function CallComponent() {
               <div className="call-video-tile__nametag" style={{ bottom: '0.75rem' }}>
                 {status === 'connected' ? '🟢 Ami' : '⏳ En attente...'}
               </div>
+              
+              {/* Show remote user's latest voice message */}
+              {messages.filter(m => m.isVoice).slice(-1).map(msg =>
+                msg.sender !== userData?.name && (
+                  <div key={msg.id} className="call-video-tile__remote-voice">
+                    <span>🎤 </span>
+                    {msg.text.replace('🎤 ', '')}
+                  </div>
+                )
+              )}
+              
+              {/* Show remote user's latest sign message */}
               {messages.filter(m => m.isSign).slice(-1).map(msg =>
                 msg.sender !== userData?.name && (
                   <div key={msg.id} className="call-video-tile__remote-sign">
@@ -436,6 +479,7 @@ function CallComponent() {
                   </div>
                 )
               )}
+              
               {friendLeft && (
                 <div className="call-video-tile__left-overlay">
                   <p>👋 L'ami a quitté</p>
@@ -459,11 +503,39 @@ function CallComponent() {
             </div>
             <CtrlBtn onClick={toggleFullscreen} icon={isFullscreen ? '🔲' : '⛶'} label={isFullscreen ? 'Quitter' : 'Plein écran'} />
             <CtrlBtn onClick={startDetection}   active={detecting}                icon="🤟"                      label={detecting ? 'Actif' : 'Détecter'} />
+            
+            {/* Language selector with dropdown */}
+            <div className="call-ctrl-wrapper">
+              <button
+                onClick={() => setShowLangMenu(!showLangMenu)}
+                className="call-ctrl-btn call-ctrl-btn--default"
+              >
+                <span className="call-ctrl-btn__icon">🌐</span>
+                <span className="call-ctrl-btn__label">{selectedLang === 'en-US' ? 'EN' : 'AR'}</span>
+              </button>
+              {showLangMenu && (
+                <div className="call-lang-menu" onClick={(e) => e.stopPropagation()}>
+                  <button 
+                    onClick={() => { changeLanguage('en-US'); setShowLangMenu(false); }}
+                    className={selectedLang === 'en-US' ? 'call-lang-menu__active' : ''}
+                  >
+                    🇬🇧 English
+                  </button>
+                  <button 
+                    onClick={() => { changeLanguage('ar-EG'); setShowLangMenu(false); }}
+                    className={selectedLang === 'ar-EG' ? 'call-lang-menu__active' : ''}
+                  >
+                    🇸🇦 العربية
+                  </button>
+                </div>
+              )}
+            </div>
+            
             <CtrlBtn
               onClick={voiceActive ? stopVoice : startVoice}
               active={voiceActive}
               icon="🎤"
-              label={voiceActive ? 'Sous-titres' : 'Sous-titres'}
+              label={voiceActive ? 'Sous-titres ON' : 'Sous-titres OFF'}
             />
             <CtrlBtn onClick={endCall} danger icon="📵" label="Terminer" />
           </div>

@@ -6,6 +6,7 @@ const SUBTITLE_LINGER_MS = 3000
 export function useVoiceSubtitles() {
   const [subtitle, setSubtitle]       = useState(null)
   const [voiceActive, setVoiceActive] = useState(false)
+  const [selectedLang, setSelectedLang] = useState('en-US') // Default to English
 
   const recognitionRef = useRef(null)
   const lingerTimer    = useRef(null)
@@ -30,8 +31,9 @@ export function useVoiceSubtitles() {
     const rec = new SpeechRecognition()
     rec.continuous          = true
     rec.interimResults      = true
-    // No rec.lang → browser auto-detects from user's OS locale
-    // You can hard-code e.g. rec.lang = 'fr-FR' if you want to force a language
+    rec.lang                = selectedLang // Set the selected language
+    
+    // Arabic (ar-EG) or English (en-US)
 
     rec.onresult = (e) => {
       let interim = ''
@@ -65,7 +67,7 @@ export function useVoiceSubtitles() {
     setVoiceActive(true)
     voiceActiveRef.current = true
     rec.start()
-  }, [scheduleClear])
+  }, [scheduleClear, selectedLang])
 
   const stopVoice = useCallback(() => {
     voiceActiveRef.current = false
@@ -76,10 +78,19 @@ export function useVoiceSubtitles() {
     setSubtitle(null)
   }, [])
 
+  const changeLanguage = useCallback((lang) => {
+    setSelectedLang(lang)
+    if (voiceActive) {
+      // Restart recognition with new language
+      stopVoice()
+      setTimeout(() => startVoice(), 100)
+    }
+  }, [voiceActive, stopVoice, startVoice])
+
   // Internal ref so `onend` closure can read current active state
   const voiceActiveRef = useRef(false)
 
   useEffect(() => () => stopVoice(), [])   // cleanup on unmount
 
-  return { subtitle, startVoice, stopVoice, voiceActive }
+  return { subtitle, startVoice, stopVoice, voiceActive, changeLanguage, selectedLang }
 }

@@ -924,3 +924,135 @@
     height: 260px;
   }
 }
+/* ==============================================
+   LANGUAGE SELECTOR MENU
+   ============================================== */
+.call-lang-menu {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 8px;
+  background: rgba(18, 18, 28, 0.98);
+  backdrop-filter: blur(12px);
+  border-radius: 12px;
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 100;
+  min-width: 120px;
+  animation: fadeSlideUp 0.2s ease;
+}
+
+.call-lang-menu button {
+  background: rgba(255, 255, 255, 0.05);
+  border: none;
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: all 0.2s;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.call-lang-menu button:hover {
+  background: rgba(59, 130, 246, 0.3);
+  transform: translateX(2px);
+}
+
+.call-lang-menu__active {
+  background: rgba(59, 130, 246, 0.25) !important;
+  border-left: 2px solid #3b82f6 !important;
+}
+
+/* ==============================================
+   VOICE MESSAGE STYLES
+   ============================================== */
+.call-chat__msg-bubble--voice-self,
+.call-chat__msg-bubble--voice-other {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(16, 185, 129, 0.1));
+  border-left: 3px solid #10b981;
+}
+
+.call-chat__msg-bubble--voice-other {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(139, 92, 246, 0.1));
+  border-left: 3px solid #8b5cf6;
+}
+
+/* ==============================================
+   REMOTE VOICE SUBTITLE DISPLAY
+   ============================================== */
+.call-video-tile__remote-voice {
+  position: absolute;
+  bottom: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(8px);
+  padding: 8px 16px;
+  border-radius: 40px;
+  color: white;
+  font-size: 0.9rem;
+  max-width: 80%;
+  text-align: center;
+  border-left: 3px solid #10b981;
+  pointer-events: none;
+  z-index: 10;
+  animation: slideUp 0.3s ease;
+  white-space: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  font-weight: 500;
+}
+
+.call-video-tile__remote-voice span {
+  margin-right: 0.25rem;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* Mobile responsive for voice overlay */
+@media (max-width: 768px) {
+  .call-video-tile__remote-voice {
+    bottom: 60px;
+    font-size: 0.8rem;
+    padding: 6px 12px;
+    max-width: 90%;
+    white-space: normal;
+    word-break: break-word;
+  }
+}
+
+@media (max-width: 480px) {
+  .call-video-tile__remote-voice {
+    bottom: 50px;
+    font-size: 0.75rem;
+    padding: 5px 10px;
+  }
+}
+
+/* Click outside to close language menu */
+.call-ctrl-wrapper:focus-within .call-lang-menu {
+  display: flex;
+}
+
+/* Close language menu when clicking elsewhere */
+body:not(:focus-within) .call-lang-menu {
+  display: none;
+}
