@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Suspense } from 'react'
 import { useGestureDetector } from '../../components/useGestureDetector'
+import { useVoiceSubtitles } from '../../components/useVoiceSubtitles'
 import {
   buildPhraseEngine,
   subtitleStyle,
@@ -73,6 +74,9 @@ function CallComponent() {
     })
     return () => unsubscribe()
   }, [])
+
+  // ── Voice subtitles hook ────────────────────────────────────
+  const { subtitle: voiceSubtitle, startVoice, stopVoice, voiceActive } = useVoiceSubtitles()
 
   // ── Gesture callbacks ───────────────────────────────────────
   const handleNoHand = useCallback(() => {
@@ -273,6 +277,7 @@ function CallComponent() {
 
   const endCall = async () => {
     stop()
+    stopVoice()
     if (callId) { try { await updateDoc(doc(db, 'calls', callId), { status: 'ended' }) } catch (e) {} }
     pcRef.current?.close()
     localStreamRef.current?.getTracks().forEach(t => t.stop())
@@ -454,7 +459,13 @@ function CallComponent() {
             </div>
             <CtrlBtn onClick={toggleFullscreen} icon={isFullscreen ? '🔲' : '⛶'} label={isFullscreen ? 'Quitter' : 'Plein écran'} />
             <CtrlBtn onClick={startDetection}   active={detecting}                icon="🤟"                      label={detecting ? 'Actif' : 'Détecter'} />
-            <CtrlBtn onClick={endCall}          danger                            icon="📵"                      label="Terminer" />
+            <CtrlBtn
+              onClick={voiceActive ? stopVoice : startVoice}
+              active={voiceActive}
+              icon="🎤"
+              label={voiceActive ? 'Sous-titres' : 'Sous-titres'}
+            />
+            <CtrlBtn onClick={endCall} danger icon="📵" label="Terminer" />
           </div>
         )}
 
@@ -511,6 +522,14 @@ function CallComponent() {
         )}
 
       </div>
+
+      {/* ── Voice subtitle bar (bottom-center, cinema style) ── */}
+      {voiceSubtitle && (
+        <div className={`call-voice-subtitle ${voiceSubtitle.isFinal ? 'call-voice-subtitle--final' : 'call-voice-subtitle--interim'}`}>
+          <span className="call-voice-subtitle__mic">🎤</span>
+          <span className="call-voice-subtitle__text">{voiceSubtitle.text}</span>
+        </div>
+      )}
 
       {/* Floating Chat */}
       {status === 'connected' && chatOpen && (

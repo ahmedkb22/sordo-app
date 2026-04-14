@@ -548,6 +548,79 @@
 }
 
 /* ==============================================
+   VOICE SUBTITLE BAR
+   Cinema-style: fixed bottom-center, above controls
+   ============================================== */
+.call-voice-subtitle {
+  position: fixed;
+  bottom: 96px;             /* sits above the controls bar */
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+
+  max-width: min(72vw, 780px);
+  padding: 0.55rem 1.1rem 0.55rem 0.85rem;
+
+  background: rgba(0, 0, 0, 0.76);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+
+  pointer-events: none;
+  animation: subtitleIn 0.18s ease;
+}
+
+/* Interim text (still speaking) — slightly faded */
+.call-voice-subtitle--interim {
+  opacity: 0.72;
+}
+
+/* Final text (phrase complete) — fully visible */
+.call-voice-subtitle--final {
+  opacity: 1;
+  border-color: rgba(59, 130, 246, 0.25);
+}
+
+/* Mic icon */
+.call-voice-subtitle__mic {
+  font-size: 0.85rem;
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+/* The transcript text */
+.call-voice-subtitle__text {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #ffffff;
+  line-height: 1.4;
+  text-align: center;
+  letter-spacing: 0.01em;
+}
+
+@keyframes subtitleIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(6px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0);   }
+}
+
+/* Nudge up when chat panel is open so they don't overlap */
+@media (max-width: 480px) {
+  .call-voice-subtitle {
+    bottom: 80px;
+    max-width: 90vw;
+  }
+
+  .call-voice-subtitle__text {
+    font-size: 0.95rem;
+  }
+}
+
+/* ==============================================
    FLOATING CHAT
    ============================================== */
 .call-chat {
