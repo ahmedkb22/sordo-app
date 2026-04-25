@@ -75,7 +75,7 @@ function assignHands(multiHandLandmarks, multiHandedness) {
 
   multiHandLandmarks.slice(0, 2).forEach((hand, i) => {
     const label = handedness[i]?.classification?.[0]?.label || 'Right'
-    const slot  = label === 'Right' ? 0 : 1
+    const slot = label === 'Right' ? 1 : 0
 
     hand.forEach((lm, j) => {
       const base = slot * 63 + j * 3
