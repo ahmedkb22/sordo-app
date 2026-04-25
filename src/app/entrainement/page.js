@@ -50,11 +50,14 @@ export default function EntrainementPage() {
 
   // ── Gesture detector hook ───────────────────────────────────
   const handleDetected = useCallback((data) => {
+    console.log('🔥 handleDetected called:', data) 
     if (data.detected) {
       setSignWord(data.word)
       setSignConf(data.confidence)
+       console.log('✅ detected word:', data.word, 'conf:', data.confidence) 
 
       if (data.confidence > 60) {
+        console.log('💬 triggering phrase engine')
         const result = phraseEngineRef.current.addSign(data.word)
 
         setGestureSubtitle({ text: result.phrase, type: result.type })
