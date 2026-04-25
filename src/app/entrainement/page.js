@@ -54,7 +54,7 @@ export default function EntrainementPage() {
       setSignWord(data.word)
       setSignConf(data.confidence)
 
-      if (data.confidence > 75) {
+      if (data.confidence > 60) {
         const result = phraseEngineRef.current.addSign(data.word)
 
         setGestureSubtitle({ text: result.phrase, type: result.type })

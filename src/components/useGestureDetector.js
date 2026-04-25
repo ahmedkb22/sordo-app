@@ -5,9 +5,9 @@
 import { useRef, useCallback } from 'react'
 
 const SEQUENCE_LENGTH      = 30
-const PREDICTION_THRESHOLD = 0.60
+const PREDICTION_THRESHOLD = 0.50
 const BUFFER_SIZE          = 15   // smoothing window
-const CONFIRM_VOTES        = 8    // votes needed to confirm a word
+const CONFIRM_VOTES        = 4    // votes needed to confirm a word
 const NO_HAND_RESET_AFTER  = 10   // frames before resetting state
 const API_URL              = 'https://sordo-backend2.onrender.com/api/predict/'
 
