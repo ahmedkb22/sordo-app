@@ -14,10 +14,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  icons: {
-    icon: "/favicon.png",
-  },
+  title: "Sordo",
+  description: "Communication sans barrières",
 };
+
 
 export default function RootLayout({ children }) {
   return (
