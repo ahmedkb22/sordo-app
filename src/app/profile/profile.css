@@ -26,7 +26,13 @@
   margin-bottom: 1.5rem;
   font-size: 1.4rem;
   font-weight: 700;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
 }
+
 
 /* ── Alert messages ─────────────────────────────────────────── */
 .profile-error {
@@ -49,6 +55,11 @@
   margin-bottom: 1rem;
   text-align: center;
   font-size: 0.9rem;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
 }
 
 /* ── Avatar ─────────────────────────────────────────────────── */
@@ -105,8 +116,12 @@
   cursor: pointer;
   font-size: 0.95rem;
   transition: opacity 0.2s ease, transform 0.2s ease;
-}
 
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
 .profile-btn:hover:not(:disabled) {
   opacity: 0.9;
   transform: translateY(-1px);

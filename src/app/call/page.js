@@ -17,6 +17,41 @@ import {
   SINGLE_SIGN_PHRASES,
   SUBTITLE_DURATION,
 } from '../../components/PhraseEngine'
+import {
+  PhoneCall,
+  PhoneOff,
+  PhoneMissed,
+  Mic,
+  MicOff,
+  Video,
+  VideoOff,
+  Monitor,
+  MonitorOff,
+  MessageSquare,
+  Maximize,
+  Minimize,
+  Hand,
+  Globe,
+  Captions,
+  CaptionsOff,
+  Copy,
+  Check,
+  Clock,
+  Link2,
+  UserRound,
+  Users,
+  LayoutGrid,
+  RefreshCw,
+  Home,
+  X,
+  Send,
+  ChevronUp,
+  Wifi,
+  HandMetal,
+  CircleDot,
+  Loader2,
+  CheckCircle2,
+} from 'lucide-react'
 import './call.css'
 
 const servers = {
@@ -86,22 +121,20 @@ function CallComponent() {
     selectedLang 
   } = useVoiceSubtitles()
 
-  // Send voice subtitles to chat for friend to see
   const sendVoiceSubtitleToChat = async (text, isFinal) => {
     const currentCallId   = callIdRef.current
     const currentUserData = userDataRef.current
-    if (!currentCallId || !text || !isFinal) return // Only send final subtitles
+    if (!currentCallId || !text || !isFinal) return
     try {
       await addDoc(collection(doc(db, 'calls', currentCallId), 'messages'), {
-        text: `🎤 ${text}`,
+        text: `[voice] ${text}`,
         sender: currentUserData?.name || 'You',
         createdAt: new Date().toISOString(),
-        isVoice: true, // Mark as voice message
+        isVoice: true,
       })
     } catch (e) { console.log('Send voice subtitle error:', e) }
   }
 
-  // Effect to send voice subtitles to chat when they're finalized
   useEffect(() => {
     if (voiceSubtitle && voiceSubtitle.isFinal && voiceSubtitle.text && status === 'connected') {
       sendVoiceSubtitleToChat(voiceSubtitle.text, voiceSubtitle.isFinal)
@@ -135,8 +168,8 @@ function CallComponent() {
         if (lastSignRef.current !== data.word) {
           lastSignRef.current = data.word
           const chatText = result.type !== 'raw'
-            ? `🤟 ${result.phrase}`
-            : `🤟 ${data.word.toUpperCase()}`
+            ? `[sign] ${result.phrase}`
+            : `[sign] ${data.word.toUpperCase()}`
           sendSignToChat(chatText)
           setTimeout(() => { lastSignRef.current = null }, 2000)
         }
@@ -161,7 +194,7 @@ function CallComponent() {
     } catch (e) { console.log('Send sign error:', e) }
   }
 
-  // ── Gesture detector (shared hook) ─────────────────────────
+  // ── Gesture detector ─────────────────────────────────────────
   const { canvasRef, start, stop } = useGestureDetector({
     onDetected: handleDetected,
     onNoHand: handleNoHand,
@@ -358,15 +391,27 @@ function CallComponent() {
             <h1 className="call-header__title">Appel vidéo</h1>
             <p className="call-header__status">
               {status === 'idle'      && 'Créez ou rejoignez un appel'}
-              {status === 'calling'   && "⏳ En attente d'un ami..."}
-              {status === 'joining'   && '🔗 Connexion en cours...'}
-              {status === 'connected' && '🟢 Connecté'}
+              {status === 'calling'   && (
+                <span className="call-status-row">
+                  <Loader2 size={13} className="call-status-spin" /> En attente d'un ami...
+                </span>
+              )}
+              {status === 'joining'   && (
+                <span className="call-status-row">
+                  <Link2 size={13} /> Connexion en cours...
+                </span>
+              )}
+              {status === 'connected' && (
+                <span className="call-status-row">
+                  <CircleDot size={13} className="call-status-dot--green" /> Connecté
+                </span>
+              )}
               {status === 'ended'     && 'Appel terminé'}
             </p>
           </div>
           {status !== 'idle' && status !== 'ended' && (
             <button onClick={endCall} className="call-header__end-btn">
-              📵 Terminer
+              <PhoneOff size={15} strokeWidth={2.2} /> Terminer
             </button>
           )}
         </div>
@@ -374,16 +419,19 @@ function CallComponent() {
         {/* Friend left banner */}
         {friendLeft && (
           <div className="call-friend-left">
-            <p className="call-friend-left__title">👋 Votre ami a quitté l'appel</p>
+            <p className="call-friend-left__title">
+              <PhoneMissed size={18} style={{ verticalAlign: 'middle', marginRight: '0.4rem' }} />
+              Votre ami a quitté l'appel
+            </p>
             <div className="call-friend-left__actions">
               <button
                 onClick={() => { setFriendLeft(false); setStatus('idle'); setCallId('') }}
                 className="call-friend-left__btn--new"
               >
-                🔄 Nouvel appel
+                <RefreshCw size={15} strokeWidth={2.5} /> Nouvel appel
               </button>
               <Link href="/dashboard" className="call-friend-left__btn--dashboard">
-                🏠 Dashboard
+                <Home size={15} strokeWidth={2} /> Dashboard
               </Link>
             </div>
           </div>
@@ -402,7 +450,8 @@ function CallComponent() {
                 className="call-video-tile__nametag"
                 style={{ bottom: gestureSubtitle ? '56px' : '0.75rem' }}
               >
-                🟢 {userData?.name || 'Vous'}
+                <CircleDot size={10} className="call-nametag-dot" />
+                {userData?.name || 'Vous'}
               </div>
 
               {/* Gesture subtitle */}
@@ -414,7 +463,7 @@ function CallComponent() {
                     borderTop: `1px solid ${subtitleStyle(gestureSubtitle.type).border}`,
                   }}
                 >
-                  <span className="call-video-tile__subtitle-emoji">🤟</span>
+                  <HandMetal size={16} className="call-video-tile__subtitle-icon" />
                   <span className="call-video-tile__subtitle-text">{gestureSubtitle.text}</span>
                   <span className="call-video-tile__subtitle-tag">
                     {gestureSubtitle.type === 'combo'  && 'COMBO'}
@@ -439,7 +488,7 @@ function CallComponent() {
                 <div className="call-video-tile__detection">
                   {signWord ? (
                     <div className="call-detection-badge call-detection-badge--detected">
-                      🤟 {signWord.toUpperCase()} — {signConfidence}%
+                      <HandMetal size={14} /> {signWord.toUpperCase()} — {signConfidence}%
                     </div>
                   ) : signConfidence > 0 ? (
                     <div className="call-detection-badge call-detection-badge--low">
@@ -447,7 +496,7 @@ function CallComponent() {
                     </div>
                   ) : (
                     <div className="call-detection-badge call-detection-badge--idle">
-                      👋 Montrez un signe...
+                      <Hand size={13} /> Montrez un signe...
                     </div>
                   )}
                 </div>
@@ -458,31 +507,37 @@ function CallComponent() {
             <div className="call-video-tile call-video-tile--remote">
               <video ref={remoteVideoRef} autoPlay playsInline />
               <div className="call-video-tile__nametag" style={{ bottom: '0.75rem' }}>
-                {status === 'connected' ? '🟢 Ami' : '⏳ En attente...'}
+                {status === 'connected'
+                  ? <><CircleDot size={10} className="call-nametag-dot" /> Ami</>
+                  : <><Loader2 size={10} className="call-status-spin" /> En attente...</>
+                }
               </div>
               
-              {/* Show remote user's latest voice message */}
+              {/* Remote voice subtitle */}
               {messages.filter(m => m.isVoice).slice(-1).map(msg =>
                 msg.sender !== userData?.name && (
                   <div key={msg.id} className="call-video-tile__remote-voice">
-                    <span>🎤 </span>
-                    {msg.text.replace('🎤 ', '')}
+                    <Mic size={13} style={{ flexShrink: 0 }} />
+                    {msg.text.replace('[voice] ', '')}
                   </div>
                 )
               )}
               
-              {/* Show remote user's latest sign message */}
+              {/* Remote sign overlay */}
               {messages.filter(m => m.isSign).slice(-1).map(msg =>
                 msg.sender !== userData?.name && (
                   <div key={msg.id} className="call-video-tile__remote-sign">
-                    <div className="call-video-tile__remote-sign-inner">{msg.text}</div>
+                    <div className="call-video-tile__remote-sign-inner">
+                      <HandMetal size={14} style={{ marginRight: '0.3rem', verticalAlign: 'middle' }} />
+                      {msg.text.replace('[sign] ', '')}
+                    </div>
                   </div>
                 )
               )}
               
               {friendLeft && (
                 <div className="call-video-tile__left-overlay">
-                  <p>👋 L'ami a quitté</p>
+                  <p><PhoneMissed size={20} style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />L'ami a quitté</p>
                 </div>
               )}
             </div>
@@ -492,17 +547,48 @@ function CallComponent() {
         {/* Controls */}
         {status === 'connected' && (
           <div className="call-controls">
-            <CtrlBtn onClick={toggleMic}    active={!micOn}    danger={!micOn}    icon={micOn ? '🎙️' : '🔇'}    label={micOn ? 'Muet' : 'Son'} />
-            <CtrlBtn onClick={toggleCamera} active={!cameraOn} danger={!cameraOn} icon={cameraOn ? '📹' : '📷'} label={cameraOn ? 'Cam off' : 'Cam on'} />
-            <CtrlBtn onClick={shareScreen}  active={sharing}                      icon="🖥️"                      label={sharing ? 'Arrêter' : 'Partager'} />
+            <CtrlBtn
+              onClick={toggleMic}
+              active={!micOn}
+              danger={!micOn}
+              icon={micOn ? <Mic size={20} /> : <MicOff size={20} />}
+              label={micOn ? 'Muet' : 'Son'}
+            />
+            <CtrlBtn
+              onClick={toggleCamera}
+              active={!cameraOn}
+              danger={!cameraOn}
+              icon={cameraOn ? <Video size={20} /> : <VideoOff size={20} />}
+              label={cameraOn ? 'Cam off' : 'Cam on'}
+            />
+            <CtrlBtn
+              onClick={shareScreen}
+              active={sharing}
+              icon={sharing ? <MonitorOff size={20} /> : <Monitor size={20} />}
+              label={sharing ? 'Arrêter' : 'Partager'}
+            />
             <div className="call-ctrl-wrapper">
-              <CtrlBtn onClick={() => setChatOpen(p => !p)} active={chatOpen} icon="💬" label="Chat" />
+              <CtrlBtn
+                onClick={() => setChatOpen(p => !p)}
+                active={chatOpen}
+                icon={<MessageSquare size={20} />}
+                label="Chat"
+              />
               {messages.length > 0 && !chatOpen && (
                 <span className="call-ctrl-badge">{messages.length}</span>
               )}
             </div>
-            <CtrlBtn onClick={toggleFullscreen} icon={isFullscreen ? '🔲' : '⛶'} label={isFullscreen ? 'Quitter' : 'Plein écran'} />
-            <CtrlBtn onClick={startDetection}   active={detecting}                icon="🤟"                      label={detecting ? 'Actif' : 'Détecter'} />
+            <CtrlBtn
+              onClick={toggleFullscreen}
+              icon={isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
+              label={isFullscreen ? 'Quitter' : 'Plein écran'}
+            />
+            <CtrlBtn
+              onClick={startDetection}
+              active={detecting}
+              icon={<HandMetal size={20} />}
+              label={detecting ? 'Actif' : 'Détecter'}
+            />
             
             {/* Language selector with dropdown */}
             <div className="call-ctrl-wrapper">
@@ -510,7 +596,7 @@ function CallComponent() {
                 onClick={() => setShowLangMenu(!showLangMenu)}
                 className="call-ctrl-btn call-ctrl-btn--default"
               >
-                <span className="call-ctrl-btn__icon">🌐</span>
+                <span className="call-ctrl-btn__icon"><Globe size={20} /></span>
                 <span className="call-ctrl-btn__label">{selectedLang === 'en-US' ? 'EN' : 'AR'}</span>
               </button>
               {showLangMenu && (
@@ -534,10 +620,15 @@ function CallComponent() {
             <CtrlBtn
               onClick={voiceActive ? stopVoice : startVoice}
               active={voiceActive}
-              icon="🎤"
+              icon={voiceActive ? <Captions size={20} /> : <CaptionsOff size={20} />}
               label={voiceActive ? 'Sous-titres ON' : 'Sous-titres OFF'}
             />
-            <CtrlBtn onClick={endCall} danger icon="📵" label="Terminer" />
+            <CtrlBtn
+              onClick={endCall}
+              danger
+              icon={<PhoneOff size={20} />}
+              label="Terminer"
+            />
           </div>
         )}
 
@@ -547,7 +638,9 @@ function CallComponent() {
 
             {/* Create */}
             <div className="call-idle-card">
-              <div className="call-idle-card__icon call-idle-card__icon--blue">📞</div>
+              <div className="call-idle-card__icon call-idle-card__icon--blue">
+                <PhoneCall size={26} color="#60a5fa" strokeWidth={1.8} />
+              </div>
               <h3 className="call-idle-card__title">Créer un appel</h3>
               <p className="call-idle-card__desc">Générez un ID et partagez-le avec votre ami.</p>
               <button onClick={createCall} className="call-idle-card__btn call-idle-card__btn--create">
@@ -557,7 +650,9 @@ function CallComponent() {
 
             {/* Join */}
             <div className="call-idle-card">
-              <div className="call-idle-card__icon call-idle-card__icon--green">🤝</div>
+              <div className="call-idle-card__icon call-idle-card__icon--green">
+                <Link2 size={26} color="#4ade80" strokeWidth={1.8} />
+              </div>
               <h3 className="call-idle-card__title">Rejoindre un appel</h3>
               <p className="call-idle-card__desc call-idle-card__desc--join">
                 Collez l'ID partagé par votre ami.
@@ -579,7 +674,10 @@ function CallComponent() {
         {/* Waiting */}
         {status === 'calling' && (
           <div className="call-waiting">
-            <p className="call-waiting__label">⏳ En attente d'un ami...</p>
+            <p className="call-waiting__label">
+              <Loader2 size={15} className="call-status-spin" style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />
+              En attente d'un ami...
+            </p>
             <p className="call-waiting__id-label">Partagez cet ID :</p>
             <div className="call-waiting__id-box">
               <p className="call-waiting__id-text">{callId}</p>
@@ -588,17 +686,20 @@ function CallComponent() {
               onClick={handleCopy}
               className={`call-waiting__copy-btn ${copied ? 'call-waiting__copy-btn--copied' : 'call-waiting__copy-btn--default'}`}
             >
-              {copied ? "✓ Copié !" : "📋 Copier l'ID"}
+              {copied
+                ? <><Check size={15} strokeWidth={2.5} /> Copié !</>
+                : <><Copy size={15} /> Copier l'ID</>
+              }
             </button>
           </div>
         )}
 
       </div>
 
-      {/* ── Voice subtitle bar (bottom-center, cinema style) ── */}
+      {/* ── Voice subtitle bar ── */}
       {voiceSubtitle && (
         <div className={`call-voice-subtitle ${voiceSubtitle.isFinal ? 'call-voice-subtitle--final' : 'call-voice-subtitle--interim'}`}>
-          <span className="call-voice-subtitle__mic">🎤</span>
+          <Mic size={14} className="call-voice-subtitle__mic-icon" />
           <span className="call-voice-subtitle__text">{voiceSubtitle.text}</span>
         </div>
       )}
@@ -607,8 +708,13 @@ function CallComponent() {
       {status === 'connected' && chatOpen && (
         <div className="call-chat">
           <div className="call-chat__header">
-            <p className="call-chat__header-title">💬 Chat</p>
-            <button onClick={() => setChatOpen(false)} className="call-chat__close-btn">✕</button>
+            <p className="call-chat__header-title">
+              <MessageSquare size={15} style={{ verticalAlign: 'middle', marginRight: '0.35rem' }} />
+              Chat
+            </p>
+            <button onClick={() => setChatOpen(false)} className="call-chat__close-btn">
+              <X size={16} />
+            </button>
           </div>
 
           <div className="call-chat__messages">
@@ -638,7 +744,9 @@ function CallComponent() {
               onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
               className="call-chat__input"
             />
-            <button onClick={sendMessage} className="call-chat__send-btn">➤</button>
+            <button onClick={sendMessage} className="call-chat__send-btn">
+              <Send size={16} strokeWidth={2} />
+            </button>
           </div>
         </div>
       )}

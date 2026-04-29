@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { auth } from '../../firebase'
 import { updateProfile, updatePassword, sendEmailVerification } from 'firebase/auth'
 import { useRouter } from 'next/navigation'
+import { User, CheckCircle, Mail, Lock, Save, KeyRound } from 'lucide-react'
 import './profile.css'
 
 export default function Profile() {
@@ -19,17 +20,28 @@ export default function Profile() {
 
   useEffect(() => {
     const currentUser = auth.currentUser
-    if (!currentUser) { router.push('/login'); return }
+    if (!currentUser) {
+      router.push('/login')
+      return
+    }
+
     setUser(currentUser)
     setName(currentUser.displayName || '')
     setPhoto(currentUser.photoURL || '')
-  }, [])
+  }, [router])
 
   const handleUpdateProfile = async () => {
-    setError(''); setMessage(''); setLoading(true)
+    setError('')
+    setMessage('')
+    setLoading(true)
+
     try {
-      await updateProfile(auth.currentUser, { displayName: name, photoURL: photo })
-      setMessage('Profil mis à jour avec succès ✅')
+      await updateProfile(auth.currentUser, {
+        displayName: name,
+        photoURL: photo,
+      })
+
+      setMessage('Profil mis à jour avec succès')
     } catch (err) {
       setError('Erreur lors de la mise à jour')
     } finally {
@@ -38,15 +50,20 @@ export default function Profile() {
   }
 
   const handleChangePassword = async () => {
-    setError(''); setMessage(''); setLoading(true)
+    setError('')
+    setMessage('')
+    setLoading(true)
+
     try {
       if (!auth.currentUser.emailVerified) {
         await sendEmailVerification(auth.currentUser)
-        setMessage('Vérifiez votre email avant de changer le mot de passe 📧')
+        setMessage('Vérifiez votre email avant de changer le mot de passe')
         return
       }
+
       await updatePassword(auth.currentUser, password)
-      setMessage('Mot de passe mis à jour 🔐')
+      setMessage('Mot de passe mis à jour')
+      setPassword('')
     } catch (err) {
       setError('Erreur: reconnectez-vous puis réessayez')
     } finally {
@@ -58,13 +75,24 @@ export default function Profile() {
     <main className="profile-main">
       <div className="profile-card">
 
-        <h2 className="profile-title">Mon Profil 👤</h2>
+        <h2 className="profile-title">
+          <User size={24} />
+          Mon Profil
+        </h2>
 
-        {/* Messages */}
-        {error   && <div className="profile-error">{error}</div>}
-        {message && <div className="profile-success">{message}</div>}
+        {error && (
+          <div className="profile-error">
+            {error}
+          </div>
+        )}
 
-        {/* Avatar */}
+        {message && (
+          <div className="profile-success">
+            <CheckCircle size={18} />
+            {message}
+          </div>
+        )}
+
         <div className="profile-avatar-wrap">
           <img
             src={photo || 'https://via.placeholder.com/100'}
@@ -73,7 +101,6 @@ export default function Profile() {
           />
         </div>
 
-        {/* Fields */}
         <div className="profile-fields">
           <input
             type="text"
@@ -96,6 +123,7 @@ export default function Profile() {
             className="profile-btn"
             disabled={loading}
           >
+            <Save size={18} />
             Mettre à jour le profil
           </button>
 
@@ -112,6 +140,7 @@ export default function Profile() {
             className="profile-btn"
             disabled={loading}
           >
+            <KeyRound size={18} />
             Changer mot de passe
           </button>
         </div>
