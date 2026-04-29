@@ -520,3 +520,69 @@
     font-size: 1.2rem;
   }
 }
+
+/* ---------- Lucide Icons Fix ---------- */
+
+.friends-toast {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.friends-card__title svg,
+.friends-back-btn svg,
+.friends-btn svg,
+.friends-search-btn svg,
+.friends-toast svg {
+  flex-shrink: 0;
+}
+
+.friends-search-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+.friends-search-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.friends-spin-icon,
+.friends-loading-icon {
+  animation: friends-spin 0.8s linear infinite;
+}
+
+.friends-role-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.friends-role-label svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+
+.friends-empty__icon {
+  width: 58px;
+  height: 58px;
+  margin: 0 auto 0.75rem;
+  border-radius: 18px;
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.22);
+  color: #93c5fd;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.friends-empty__icon svg {
+  width: 42px;
+  height: 42px;
+}
