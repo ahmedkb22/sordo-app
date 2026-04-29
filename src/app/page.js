@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Handshake, Zap, Lock, Globe, Play } from "lucide-react";
 import "./page.css";
 
 export default function Home() {
@@ -40,7 +41,9 @@ export default function Home() {
 
         {/* Media placeholder */}
         <div className="hero-media">
-          <div className="hero-media-icon">▶</div>
+          <div className="hero-media-icon">
+            <Play size={24} strokeWidth={1.5} />
+          </div>
           Votre vidéo / photo de démo ici
         </div>
 
@@ -49,10 +52,10 @@ export default function Home() {
       {/* ── Features strip ── */}
       <section className="features-section">
         {[
-          { icon: "🤝", title: "Accessibilité totale",  desc: "Une interface pensée pour tous, adaptée aux besoins de chaque utilisateur." },
-          { icon: "⚡", title: "Temps réel",            desc: "Traduction et communication instantanées sans délai perceptible." },
-          { icon: "🔒", title: "Privé & sécurisé",      desc: "Vos conversations restent confidentielles et chiffrées de bout en bout." },
-          { icon: "🌍", title: "Multilingue",           desc: "Fonctionne en plusieurs langues et langages des signes." },
+          { icon: <Handshake size={28} strokeWidth={1.5} />, title: "Accessibilité totale", desc: "Une interface pensée pour tous, adaptée aux besoins de chaque utilisateur." },
+          { icon: <Zap       size={28} strokeWidth={1.5} />, title: "Temps réel",           desc: "Traduction et communication instantanées sans délai perceptible." },
+          { icon: <Lock      size={28} strokeWidth={1.5} />, title: "Privé & sécurisé",     desc: "Vos conversations restent confidentielles et chiffrées de bout en bout." },
+          { icon: <Globe     size={28} strokeWidth={1.5} />, title: "Multilingue",          desc: "Fonctionne en plusieurs langues et langages des signes." },
         ].map((f) => (
           <div key={f.title} className="feature-card">
             <div className="feature-icon">{f.icon}</div>
