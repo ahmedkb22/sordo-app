@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { auth } from '../../firebase'
 import { signInWithEmailAndPassword } from 'firebase/auth'
 import { useRouter } from 'next/navigation'
+import { Eye, EyeOff, HandMetal } from 'lucide-react'
 import './login.css'
 
 export default function Login() {
@@ -11,6 +12,7 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [error, setError]       = useState('')
   const [loading, setLoading]   = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
   const router = useRouter()
 
   const handleLogin = async () => {
@@ -37,7 +39,9 @@ export default function Login() {
         {/* Header */}
         <div className="login-header">
           <Link href="/" className="login-logo">SORDO</Link>
-          <h2 className="login-title">Bon retour 👋</h2>
+          <h2 className="login-title">
+            Bon retour <HandMetal size={22} strokeWidth={1.5} className="login-title-icon" />
+          </h2>
           <p className="login-subtitle">Connectez-vous à votre compte SORDO</p>
         </div>
 
@@ -59,13 +63,25 @@ export default function Login() {
 
           <div>
             <label className="login-field-label">Mot de passe</label>
-            <input
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="login-input"
-            />
+            <div className="login-input-wrapper">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="login-input"
+              />
+              <button
+                type="button"
+                className="login-eye-btn"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+              >
+                {showPassword
+                  ? <EyeOff size={18} strokeWidth={1.8} />
+                  : <Eye    size={18} strokeWidth={1.8} />}
+              </button>
+            </div>
           </div>
 
           <button

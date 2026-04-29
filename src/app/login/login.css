@@ -54,6 +54,15 @@
   font-weight: 700;
   color: white;
   margin: 1rem 0 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+.login-title-icon {
+  color: #60a5fa;
+  flex-shrink: 0;
 }
 
 .login-subtitle {
@@ -91,6 +100,35 @@
   text-transform: uppercase;
 }
 
+/* ── Password wrapper ───────────────────────────────────────── */
+.login-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.login-input-wrapper .login-input {
+  padding-right: 2.75rem;
+}
+
+.login-eye-btn {
+  position: absolute;
+  right: 0.85rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.35);
+  display: flex;
+  align-items: center;
+  padding: 0;
+  transition: color 0.2s ease;
+}
+
+.login-eye-btn:hover {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+/* ── Input ──────────────────────────────────────────────────── */
 .login-input {
   width: 100%;
   padding: 0.85rem 1rem;
