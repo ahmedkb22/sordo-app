@@ -1,23 +1,20 @@
 // =============================================================
-// useGestureDetector — mirrors predict_realtime.py exactly
-// Same normalization, hand assignment, buffering, voting system
+// useGestureDetector — runs fully in the browser (no backend)
+// MediaPipe → normalize → TFJS model → voting → onDetected
 // =============================================================
-import { useRef, useCallback } from 'react'
+import { useRef, useCallback, useEffect } from 'react'
+import * as tf from '@tensorflow/tfjs'
 
 const SEQUENCE_LENGTH      = 30
 const PREDICTION_THRESHOLD = 0.50
-const BUFFER_SIZE          = 15   // smoothing window
-const CONFIRM_VOTES        = 4    // votes needed to confirm a word
-const NO_HAND_RESET_AFTER  = 10   // frames before resetting state
-const API_URL              = 'https://sordo-backend2.onrender.com/api/predict/'
+const BUFFER_SIZE          = 15
+const CONFIRM_VOTES        = 4
+const NO_HAND_RESET_AFTER  = 10
 
 // =============================================================
-// NORMALIZATION — mirrors normalize_landmarks() in predict_realtime.py
-// Operates on the full 126-value array (2 hands × 21 landmarks × 3)
-// Centres each hand on its wrist and scales to [-1, 1]
+// NORMALIZATION — unchanged from original
 // =============================================================
 function normalizeLandmarks(raw126) {
-  // reshape to [2, 21, 3]
   const arr = []
   for (let h = 0; h < 2; h++) {
     const hand = []
@@ -29,11 +26,9 @@ function normalizeLandmarks(raw126) {
   }
 
   for (let h = 0; h < 2; h++) {
-    // Check if hand is present (any non-zero value)
     const hasData = arr[h].some(p => p[0] !== 0 || p[1] !== 0 || p[2] !== 0)
     if (!hasData) continue
 
-    // Centre on wrist (landmark 0)
     const [wx, wy, wz] = arr[h][0]
     for (let j = 0; j < 21; j++) {
       arr[h][j][0] -= wx
@@ -41,7 +36,6 @@ function normalizeLandmarks(raw126) {
       arr[h][j][2] -= wz
     }
 
-    // Scale to [-1, 1]
     let maxVal = 1e-6
     for (let j = 0; j < 21; j++) {
       for (let k = 0; k < 3; k++) {
@@ -55,7 +49,6 @@ function normalizeLandmarks(raw126) {
     }
   }
 
-  // Flatten back to 126
   const out = []
   for (let h = 0; h < 2; h++) {
     for (let j = 0; j < 21; j++) {
@@ -66,8 +59,7 @@ function normalizeLandmarks(raw126) {
 }
 
 // =============================================================
-// HAND ASSIGNMENT — mirrors assign_hands() in predict_realtime.py
-// slot 0 = right hand, slot 1 = left hand
+// HAND ASSIGNMENT — unchanged from original
 // =============================================================
 function assignHands(multiHandLandmarks, multiHandedness) {
   const landmarks = new Array(126).fill(0.0)
@@ -93,6 +85,8 @@ function assignHands(multiHandLandmarks, multiHandedness) {
 // =============================================================
 export function useGestureDetector({ onDetected, onNoHand }) {
   const handsRef        = useRef(null)
+  const modelRef        = useRef(null)   // TFJS model
+  const labelsRef       = useRef([])     // labels from labels.json
   const sequenceRef     = useRef([])
   const frameCounterRef = useRef(0)
   const noHandFramesRef = useRef(0)
@@ -100,16 +94,37 @@ export function useGestureDetector({ onDetected, onNoHand }) {
   const animFrameRef    = useRef(null)
   const canvasRef       = useRef(null)
 
-  // Smoothing buffers — mirror predict_realtime.py
-  const predBufferRef = useRef([])   // last BUFFER_SIZE predicted words
-  const probBufferRef = useRef([])   // last BUFFER_SIZE softmax arrays
+  const predBufferRef = useRef([])
+  const probBufferRef = useRef([])
 
-  // Current confirmed result
   const currentWordRef       = useRef('')
   const currentConfidenceRef = useRef(0.0)
 
   // =============================================================
-  // RESET STATE — same as NO_HAND_RESET_AFTER block in py
+  // LOAD MODEL + LABELS on mount
+  // =============================================================
+  useEffect(() => {
+    async function loadModel() {
+      try {
+        console.log('Loading Sordo TFJS model...')
+        const [model, labelsRes] = await Promise.all([
+          tf.loadLayersModel('/sordo_tfjs_model/model.json'),
+          fetch('/labels.json')
+        ])
+        const labels = await labelsRes.json()
+        modelRef.current  = model
+        // labels.json can be an array ["hello","thanks",...] or object {0:"hello",...}
+        labelsRef.current = Array.isArray(labels) ? labels : Object.values(labels)
+        console.log('✅ Model loaded. Classes:', labelsRef.current)
+      } catch (err) {
+        console.error('Failed to load Sordo model:', err)
+      }
+    }
+    loadModel()
+  }, [])
+
+  // =============================================================
+  // RESET STATE
   // =============================================================
   function resetState() {
     sequenceRef.current          = []
@@ -122,7 +137,7 @@ export function useGestureDetector({ onDetected, onNoHand }) {
   }
 
   // =============================================================
-  // MEDIAPIPE SETUP
+  // MEDIAPIPE SETUP — unchanged from original
   // =============================================================
   const setupMediaPipe = useCallback(async () => {
     const { Hands } = await import('@mediapipe/hands')
@@ -132,16 +147,14 @@ export function useGestureDetector({ onDetected, onNoHand }) {
     hands.setOptions({
       maxNumHands: 2,
       modelComplexity: 1,
-      minDetectionConfidence: 0.5,  // matches predict_realtime.py
-      minTrackingConfidence: 0.5,   // matches predict_realtime.py
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5,
     })
 
     hands.onResults((results) => {
       if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-        // Hand detected — reset no-hand counter
         noHandFramesRef.current = 0
 
-        // Assign hands to slots + normalize (mirrors assign_hands in py)
         const frameLandmarks = assignHands(
           results.multiHandLandmarks,
           results.multiHandedness
@@ -154,7 +167,6 @@ export function useGestureDetector({ onDetected, onNoHand }) {
 
         frameCounterRef.current += 1
 
-        // Predict every 3 frames (matches py: frame_counter % 3 == 0)
         if (
           sequenceRef.current.length === SEQUENCE_LENGTH &&
           frameCounterRef.current % 3 === 0
@@ -163,10 +175,7 @@ export function useGestureDetector({ onDetected, onNoHand }) {
         }
 
       } else {
-        // No hand detected
         noHandFramesRef.current += 1
-
-        // Grace period — only reset after N consecutive no-hand frames
         if (noHandFramesRef.current >= NO_HAND_RESET_AFTER) {
           resetState()
           onNoHand?.()
@@ -178,32 +187,39 @@ export function useGestureDetector({ onDetected, onNoHand }) {
   }, [onNoHand])
 
   // =============================================================
-  // PREDICT — sends sequence to backend, applies same voting logic
-  // as predict_realtime.py
+  // PREDICT — now runs locally with TFJS, same voting logic
   // =============================================================
-  const predictSign = async (sequence) => {
+  const predictSign = useCallback(async (sequence) => {
+    if (!modelRef.current || labelsRef.current.length === 0) return
+
     try {
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sequence }),
+      // Run inference inside tf.tidy to avoid memory leaks
+      const probabilities = tf.tidy(() => {
+        const input = tf.tensor3d([sequence], [1, SEQUENCE_LENGTH, 126])
+        const output = modelRef.current.predict(input)
+        return output.dataSync() // Float32Array of 8 probabilities
       })
-      const data = await response.json()
 
-      if (!data || data.error) return
+      // Find best prediction
+      let maxProb = 0
+      let maxIdx  = 0
+      for (let i = 0; i < probabilities.length; i++) {
+        if (probabilities[i] > maxProb) {
+          maxProb = probabilities[i]
+          maxIdx  = i
+        }
+      }
 
-      const confidence = data.confidence / 100  // backend returns 0-100
-      const word       = data.word
-      const detected   = data.detected
+      const confidence = maxProb
+      const word       = labelsRef.current[maxIdx] || `class_${maxIdx}`
+      const detected   = confidence >= PREDICTION_THRESHOLD
 
-      if (detected && confidence >= PREDICTION_THRESHOLD) {
-        // Add to predictions buffer (cap at BUFFER_SIZE)
+      if (detected) {
         predBufferRef.current.push(word)
         if (predBufferRef.current.length > BUFFER_SIZE) {
           predBufferRef.current.shift()
         }
 
-        // Count votes for this word — mirrors predict_realtime.py voting
         const votes = predBufferRef.current.filter(w => w === word).length
 
         if (votes >= CONFIRM_VOTES) {
@@ -217,7 +233,6 @@ export function useGestureDetector({ onDetected, onNoHand }) {
         }
 
       } else {
-        // Below threshold — clear buffers (matches py behaviour)
         predBufferRef.current        = []
         probBufferRef.current        = []
         currentWordRef.current       = ''
@@ -231,12 +246,12 @@ export function useGestureDetector({ onDetected, onNoHand }) {
       }
 
     } catch (e) {
-      console.log('Prediction error:', e)
+      console.error('Local prediction error:', e)
     }
-  }
+  }, [onDetected])
 
   // =============================================================
-  // FRAME LOOP
+  // FRAME LOOP — unchanged from original
   // =============================================================
   const runLoop = useCallback((videoRef) => {
     if (!detectingRef.current) return
@@ -260,7 +275,7 @@ export function useGestureDetector({ onDetected, onNoHand }) {
   }, [])
 
   // =============================================================
-  // START / STOP
+  // START / STOP — unchanged from original
   // =============================================================
   const start = useCallback(async (videoRef) => {
     await setupMediaPipe()
