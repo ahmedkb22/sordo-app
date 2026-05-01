@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { db } from '../../../../firebase'
+import { db } from '../../../firebase'
 import { collection, getDocs, query, orderBy } from 'firebase/firestore'
 import {
   Users, Activity, Phone, Mail, LayoutDashboard,
