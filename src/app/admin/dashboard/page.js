@@ -143,7 +143,7 @@ export default function AdminDashboard() {
         <div className="admin-header">
           <div>
             <h1 className="admin-header-title">Dashboard</h1>
-            <p className="admin-header-sub">Welcome back, Ahmed 👋</p>
+            <p className="admin-header-sub">Welcome back, Ahmed </p>
           </div>
           <div className="admin-header-date">
             {new Date().toLocaleDateString('en', { weekday: 'long', month: 'long', day: 'numeric' })}
