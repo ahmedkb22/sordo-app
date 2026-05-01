@@ -18,8 +18,57 @@ import {
   Loader2,
   FlaskConical,
   CheckCircle2,
+  Crown,
+  Zap,
+  Star,
+  Clock,
+  ChevronRight,
+  Infinity,
 } from 'lucide-react'
 import './dashboard.css'
+
+const PLAN_META = {
+  free: {
+    name: 'Gratuit',
+    color: '#94a3b8',
+    bg: 'rgba(148,163,184,0.12)',
+    border: 'rgba(148,163,184,0.2)',
+    hoverBg: 'rgba(148,163,184,0.07)',
+    hoverBorder: 'rgba(148,163,184,0.2)',
+    icon: <Clock size={22} />,
+    limitMin: 60,
+  },
+  plus: {
+    name: 'Plus',
+    color: '#60a5fa',
+    bg: 'rgba(96,165,250,0.12)',
+    border: 'rgba(96,165,250,0.22)',
+    hoverBg: 'rgba(96,165,250,0.08)',
+    hoverBorder: 'rgba(96,165,250,0.3)',
+    icon: <Zap size={22} />,
+    limitMin: 360,
+  },
+  pro: {
+    name: 'Pro',
+    color: '#a78bfa',
+    bg: 'rgba(167,139,250,0.12)',
+    border: 'rgba(167,139,250,0.22)',
+    hoverBg: 'rgba(167,139,250,0.08)',
+    hoverBorder: 'rgba(167,139,250,0.3)',
+    icon: <Star size={22} />,
+    limitMin: null,
+  },
+  vip: {
+    name: 'VIP',
+    color: '#fbbf24',
+    bg: 'rgba(251,191,36,0.12)',
+    border: 'rgba(251,191,36,0.22)',
+    hoverBg: 'rgba(251,191,36,0.07)',
+    hoverBorder: 'rgba(251,191,36,0.3)',
+    icon: <Crown size={22} />,
+    limitMin: null,
+  },
+}
 
 export default function Dashboard() {
   const [user, setUser]                   = useState(null)
@@ -27,6 +76,7 @@ export default function Dashboard() {
   const [friendsCount, setFriendsCount]   = useState(0)
   const [notifications, setNotifications] = useState(0)
   const [onlineCount, setOnlineCount]     = useState(0)
+  const [usageToday, setUsageToday]       = useState(0)
   const router = useRouter()
 
   useEffect(() => {
@@ -38,8 +88,15 @@ export default function Dashboard() {
         const docRef  = doc(db, 'users', currentUser.uid)
         const docSnap = await getDoc(docRef)
         if (docSnap.exists()) {
-          setUserData(docSnap.data())
-          setFriendsCount(docSnap.data().friends?.length || 0)
+          const data = docSnap.data()
+          setUserData(data)
+          setFriendsCount(data.friends?.length || 0)
+
+          // Load today's usage
+          const today = new Date().toISOString().slice(0, 10)
+          const todayMin = data.usage?.usageByDay?.[today] || 0
+          setUsageToday(todayMin)
+
           const { getDocs, collection, query, where } = await import('firebase/firestore')
           const q = query(
             collection(db, 'friendRequests'),
@@ -72,6 +129,9 @@ export default function Dashboard() {
       </div>
     </main>
   )
+
+  const planId   = userData?.subscription?.plan || 'free'
+  const planMeta = PLAN_META[planId] || PLAN_META.free
 
   return (
     <main className="dash-page">
@@ -189,9 +249,99 @@ export default function Dashboard() {
             pillBorder="rgba(124,58,237,0.25)"
           />
 
+          {/* Subscription card */}
+          <SubscriptionCard
+            planId={planId}
+            planMeta={planMeta}
+            usageToday={usageToday}
+          />
+
         </div>
       </div>
     </main>
+  )
+}
+
+/* ── Subscription card ───────────────────────────────────────── */
+function SubscriptionCard({ planId, planMeta, usageToday }) {
+  const isUnlimited = planMeta.limitMin === null
+  const pct = isUnlimited ? 100 : Math.min(100, Math.round((usageToday / planMeta.limitMin) * 100))
+  const used = Math.round(usageToday)
+  const limit = planMeta.limitMin
+
+  // Bar colour shifts red when above 80%
+  const barColor = pct >= 80 ? '#f87171' : planMeta.color
+
+  return (
+    <Link
+      href="/pricing"
+      className="dash-action-card dash-sub-card"
+      style={{ '--sub-color': planMeta.color, '--sub-border': planMeta.border }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background  = planMeta.hoverBg
+        e.currentTarget.style.borderColor = planMeta.hoverBorder
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background  = 'rgba(255,255,255,0.03)'
+        e.currentTarget.style.borderColor = planMeta.border
+      }}
+    >
+      {/* Plan pill top-right */}
+      <div
+        className="dash-action-card__pill"
+        style={{
+          background: planMeta.bg,
+          border: `1px solid ${planMeta.border}`,
+          color: planMeta.color,
+        }}
+      >
+        {planMeta.icon && <span style={{ display: 'flex' }}>{planMeta.icon}</span>}
+        {planMeta.name}
+      </div>
+
+      {/* Icon */}
+      <div
+        className="dash-action-card__icon"
+        style={{ background: planMeta.bg, border: `1px solid ${planMeta.border}`, color: planMeta.color }}
+      >
+        <Crown size={24} strokeWidth={2} />
+      </div>
+
+      <h3 className="dash-action-card__title">Mon Abonnement</h3>
+
+      {/* Usage bar */}
+      <div className="dash-sub-card__usage">
+        <div className="dash-sub-card__usage-row">
+          <span className="dash-sub-card__usage-label">
+            {isUnlimited ? 'Utilisation aujourd\'hui' : `${used} / ${limit} min`}
+          </span>
+          <span className="dash-sub-card__usage-pct" style={{ color: barColor }}>
+            {isUnlimited ? <Infinity size={14} /> : `${pct}%`}
+          </span>
+        </div>
+        <div className="dash-sub-card__bar-track">
+          <div
+            className="dash-sub-card__bar-fill"
+            style={{
+              width: `${pct}%`,
+              background: barColor,
+              boxShadow: `0 0 8px ${barColor}88`,
+            }}
+          />
+        </div>
+      </div>
+
+      {/* CTA */}
+      {planId === 'free' || planId === 'plus' ? (
+        <p className="dash-sub-card__cta" style={{ color: planMeta.color }}>
+          Mettre à niveau <ChevronRight size={13} strokeWidth={2.5} />
+        </p>
+      ) : (
+        <p className="dash-sub-card__cta" style={{ color: planMeta.color }}>
+          Voir les plans <ChevronRight size={13} strokeWidth={2.5} />
+        </p>
+      )}
+    </Link>
   )
 }
 

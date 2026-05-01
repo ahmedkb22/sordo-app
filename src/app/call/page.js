@@ -12,6 +12,8 @@ import { Suspense } from 'react'
 import { useSessionTracker } from '../../components/useSessionTracker'
 import { useGestureDetector } from '../../components/useGestureDetector'
 import { useVoiceSubtitles } from '../../components/useVoiceSubtitles'
+import { usePlanLimits } from '../../components/usePlanLimits'
+import PaywallModal from '../../components/PaywallModal'
 import {
   buildPhraseEngine,
   subtitleStyle,
@@ -98,6 +100,8 @@ function CallComponent() {
   const userDataRef     = useRef(null)
   const phraseEngineRef = useRef(buildPhraseEngine())
   const subtitleTimeout = useRef(null)
+  const [showPaywall, setShowPaywall] = useState(false)
+  const { plan, minutesUsed, minutesLimit, canUse } = usePlanLimits({ uid: user?.uid, type: 'call' })
 
   useEffect(() => { callIdRef.current = callId },    [callId])
   useEffect(() => { userDataRef.current = userData }, [userData])
@@ -235,6 +239,7 @@ function CallComponent() {
   }
 
   const createCall = async () => {
+    if (!canUse) { setShowPaywall(true); return }
     setStatus('calling')
     const stream = await startCamera()
     const pc = new RTCPeerConnection(servers)
@@ -272,6 +277,7 @@ function CallComponent() {
 
   const joinCall = async () => {
     if (!callId.trim()) return
+    if (!canUse) { setShowPaywall(true); return }
     setStatus('joining')
     const stream = await startCamera()
     const pc = new RTCPeerConnection(servers)
@@ -754,6 +760,17 @@ function CallComponent() {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Paywall Modal */}
+      {showPaywall && (
+        <PaywallModal
+          type="call"
+          minutesUsed={minutesUsed}
+          minutesLimit={minutesLimit}
+          plan={plan}
+          onClose={() => setShowPaywall(false)}
+        />
       )}
     </main>
   )

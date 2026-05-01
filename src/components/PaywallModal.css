@@ -1,0 +1,212 @@
+/* ── Overlay ─────────────────────────────────────────────────── */
+.paywall-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+/* ── Modal ───────────────────────────────────────────────────── */
+.paywall-modal {
+  background: linear-gradient(160deg, #050a1e 0%, #0a1635 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 24px;
+  padding: 2.5rem 2rem;
+  width: 100%;
+  max-width: 700px;
+  position: relative;
+  color: white;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+/* ── Close ───────────────────────────────────────────────────── */
+.paywall-close {
+  position: absolute;
+  top: 1.25rem;
+  right: 1.25rem;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  padding: 0.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.paywall-close:hover { color: white; background: rgba(255,255,255,0.1); }
+
+/* ── Header ──────────────────────────────────────────────────── */
+.paywall-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.paywall-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1rem;
+}
+
+.paywall-title {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: white;
+  margin: 0 0 0.5rem;
+}
+
+.paywall-desc {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.5);
+  line-height: 1.7;
+  margin-bottom: 1rem;
+}
+
+.paywall-desc strong { color: white; }
+
+/* ── Progress ────────────────────────────────────────────────── */
+.paywall-progress-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: 320px;
+  margin: 0 auto;
+}
+
+.paywall-progress-bar {
+  flex: 1;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.paywall-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #f87171, #ef4444);
+  border-radius: 999px;
+  transition: width 0.5s ease;
+}
+
+.paywall-progress-label {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.3);
+  white-space: nowrap;
+}
+
+/* ── Plans grid ──────────────────────────────────────────────── */
+.paywall-plans {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.paywall-plan {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 16px;
+  padding: 1.25rem 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  text-align: center;
+  position: relative;
+  transition: border-color 0.2s ease;
+}
+
+.paywall-plan--recommended {
+  background: rgba(74, 222, 128, 0.04);
+}
+
+.paywall-plan-badge {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #020818;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  white-space: nowrap;
+  letter-spacing: 0.05em;
+}
+
+.paywall-plan-icon {
+  margin-bottom: 0.25rem;
+  margin-top: 0.5rem;
+}
+
+.paywall-plan-name {
+  font-size: 0.9rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.paywall-plan-price {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.35);
+  margin: 0 0 0.5rem;
+}
+
+.paywall-plan-perks {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  width: 100%;
+}
+
+.paywall-plan-perks li {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.4);
+  text-align: left;
+}
+
+.paywall-plan-btn {
+  display: block;
+  width: 100%;
+  padding: 0.6rem;
+  border-radius: 10px;
+  color: #020818;
+  font-weight: 700;
+  font-size: 0.82rem;
+  text-align: center;
+  text-decoration: none;
+  transition: opacity 0.2s ease;
+  margin-top: auto;
+}
+
+.paywall-plan-btn:hover { opacity: 0.85; }
+
+/* ── Footer ──────────────────────────────────────────────────── */
+.paywall-footer {
+  text-align: center;
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.2);
+  margin: 0;
+}
+
+/* ── Responsive ──────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  .paywall-plans { grid-template-columns: 1fr; }
+  .paywall-modal { padding: 2rem 1.25rem; }
+}

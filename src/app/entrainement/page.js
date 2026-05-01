@@ -6,6 +6,8 @@ import { onAuthStateChanged } from 'firebase/auth'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useSessionTracker } from '../../components/useSessionTracker'
+import { usePlanLimits } from '../../components/usePlanLimits'
+import PaywallModal from '../../components/PaywallModal'
 
 import {
   ArrowLeft,
@@ -34,7 +36,6 @@ export default function EntrainementPage() {
   const [user, setUser] = useState(null)
   const [ready, setReady] = useState(false)
 
-
   const [cameraOn, setCameraOn] = useState(false)
   const [micOn, setMicOn] = useState(true)
   const [streamStarted, setStreamStarted] = useState(false)
@@ -42,14 +43,15 @@ export default function EntrainementPage() {
   const [detecting, setDetecting] = useState(false)
   const { endSession } = useSessionTracker({ uid: user?.uid, type: 'entrainement', active: detecting })
 
+  const [showPaywall, setShowPaywall] = useState(false)
+  const { plan, minutesUsed, minutesLimit, canUse } = usePlanLimits({ uid: user?.uid, type: 'entrainement' })
+
   const [signWord, setSignWord] = useState(null)
   const [signConfidence, setSignConf] = useState(0)
 
   const [gestureSubtitle, setGestureSubtitle] = useState(null)
   const [pendingSigns, setPendingSigns] = useState([])
   const [detectionLog, setDetectionLog] = useState([])
-
-
 
   const videoRef = useRef(null)
   const localStreamRef = useRef(null)
@@ -152,6 +154,8 @@ export default function EntrainementPage() {
   }
 
   const toggleDetection = async () => {
+    if (!canUse) { setShowPaywall(true); return }
+
     if (!streamStarted) {
       await startCamera()
     }
@@ -188,7 +192,7 @@ export default function EntrainementPage() {
     return { label: 'SIGNE', color: '#60a5fa' }
   }
 
-const handleStopAll = async () => {
+  const handleStopAll = async () => {
     stop()
 
     localStreamRef.current?.getTracks().forEach((t) => t.stop())
@@ -201,8 +205,6 @@ const handleStopAll = async () => {
     setGestureSubtitle(null)
     setPendingSigns([])
     phraseEngineRef.current.clear()
-    
-
   }
 
   if (!ready) {
@@ -443,6 +445,16 @@ const handleStopAll = async () => {
           </div>
         </div>
       </div>
+
+      {showPaywall && (
+        <PaywallModal
+          type="entrainement"
+          minutesUsed={minutesUsed}
+          minutesLimit={minutesLimit}
+          plan={plan}
+          onClose={() => setShowPaywall(false)}
+        />
+      )}
     </main>
   )
 }
