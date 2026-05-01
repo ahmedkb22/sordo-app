@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { Handshake, Zap, Lock, Globe, Play } from "lucide-react";
 import "./page.css";
+import Footer from '../components/footer'
+
 
 export default function Home() {
   return (
@@ -64,7 +66,7 @@ export default function Home() {
           </div>
         ))}
       </section>
-
+<Footer />
     </main>
   );
 }

@@ -1,4 +1,5 @@
 import "./about.css";
+import Footer from '../../components/footer'
 
 export default function About() {
   const team = [
@@ -67,6 +68,7 @@ export default function About() {
         </div>
 
       </section>
+<Footer />
 
     </main>
   );
