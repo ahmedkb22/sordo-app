@@ -3,7 +3,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { auth, db } from '../../firebase'
 import { createUserWithEmailAndPassword, updateProfile, sendEmailVerification } from 'firebase/auth'
-import { doc, setDoc } from 'firebase/firestore'
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { useRouter } from 'next/navigation'
 import { Mic, HandMetal, Eye, EyeOff, Check, X } from 'lucide-react'
 import './signup.css'
@@ -41,7 +41,21 @@ export default function Signup() {
       const user = userCredential.user
       await updateProfile(user, { displayName: name })
       await setDoc(doc(db, 'users', user.uid), {
-        name, email, role, createdAt: new Date().toISOString(),
+        name,
+        email,
+        role,
+        createdAt: serverTimestamp(),
+        subscription: {
+          plan: 'free',
+          startDate: serverTimestamp(),
+          expiresAt: null,
+        },
+        usage: {
+          totalMinutes: 0,
+          callMinutes: 0,
+          entrainementMinutes: 0,
+          usageByDay: {},
+        }
       })
       await sendEmailVerification(user)
       setEmailSent(true)
