@@ -9,6 +9,7 @@ import {
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Suspense } from 'react'
+import { useSessionTracker } from '../../components/useSessionTracker'
 import { useGestureDetector } from '../../components/useGestureDetector'
 import { useVoiceSubtitles } from '../../components/useVoiceSubtitles'
 import {
@@ -63,8 +64,11 @@ const servers = {
 function CallComponent() {
   const [user, setUser]               = useState(null)
   const [userData, setUserData]       = useState(null)
+
   const [callId, setCallId]           = useState('')
   const [status, setStatus]           = useState('idle')
+  const { endSession } = useSessionTracker({ uid: user?.uid, type: 'call', active: status === 'connected' })
+
   const [friendLeft, setFriendLeft]   = useState(false)
   const [messages, setMessages]       = useState([])
   const [newMessage, setNewMessage]   = useState('')
@@ -344,6 +348,7 @@ function CallComponent() {
     if (callId) { try { await updateDoc(doc(db, 'calls', callId), { status: 'ended' }) } catch (e) {} }
     pcRef.current?.close()
     localStreamRef.current?.getTracks().forEach(t => t.stop())
+    await endSession()
     router.push('/dashboard')
   }
 

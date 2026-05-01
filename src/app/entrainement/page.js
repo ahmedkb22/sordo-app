@@ -5,6 +5,8 @@ import { auth } from '../../firebase'
 import { onAuthStateChanged } from 'firebase/auth'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { useSessionTracker } from '../../components/useSessionTracker'
+
 import {
   ArrowLeft,
   Dumbbell,
@@ -32,17 +34,22 @@ export default function EntrainementPage() {
   const [user, setUser] = useState(null)
   const [ready, setReady] = useState(false)
 
+
   const [cameraOn, setCameraOn] = useState(false)
   const [micOn, setMicOn] = useState(true)
   const [streamStarted, setStreamStarted] = useState(false)
 
   const [detecting, setDetecting] = useState(false)
+  const { endSession } = useSessionTracker({ uid: user?.uid, type: 'entrainement', active: detecting })
+
   const [signWord, setSignWord] = useState(null)
   const [signConfidence, setSignConf] = useState(0)
 
   const [gestureSubtitle, setGestureSubtitle] = useState(null)
   const [pendingSigns, setPendingSigns] = useState([])
   const [detectionLog, setDetectionLog] = useState([])
+
+
 
   const videoRef = useRef(null)
   const localStreamRef = useRef(null)
@@ -181,10 +188,11 @@ export default function EntrainementPage() {
     return { label: 'SIGNE', color: '#60a5fa' }
   }
 
-  const handleStopAll = () => {
+const handleStopAll = async () => {
     stop()
 
     localStreamRef.current?.getTracks().forEach((t) => t.stop())
+    await endSession()
 
     setStreamStarted(false)
     setCameraOn(false)
@@ -193,6 +201,8 @@ export default function EntrainementPage() {
     setGestureSubtitle(null)
     setPendingSigns([])
     phraseEngineRef.current.clear()
+    
+
   }
 
   if (!ready) {

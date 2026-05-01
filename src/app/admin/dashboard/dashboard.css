@@ -479,3 +479,60 @@
   .admin-stats-grid { grid-template-columns: 1fr 1fr; gap: 0.75rem; }
   .admin-stat-value { font-size: 1.4rem; }
 }
+
+/* ── 3-col stats grid ────────────────────────────────────────── */
+.admin-stats-grid--3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+/* ── Stacked bar chart ───────────────────────────────────────── */
+.admin-chart-bar-wrap--stacked {
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 2px;
+}
+
+.admin-chart-bar--call {
+  background: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%);
+  border-radius: 4px 4px 0 0;
+  width: 100%;
+  min-height: 2px;
+  transition: height 0.6s ease;
+}
+
+.admin-chart-bar--entr {
+  background: linear-gradient(180deg, #a78bfa 0%, #7c3aed 100%);
+  border-radius: 0;
+  width: 100%;
+  min-height: 2px;
+  transition: height 0.6s ease;
+}
+
+/* ── Chart legend ────────────────────────────────────────────── */
+.admin-chart-legend {
+  display: flex;
+  gap: 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.admin-chart-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  color: rgba(255,255,255,0.4);
+}
+
+.admin-chart-legend-item span {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.admin-chart-legend-item--call span { background: #3b82f6; }
+.admin-chart-legend-item--entr span { background: #a78bfa; }
+
+@media (max-width: 768px) {
+  .admin-stats-grid--3 { grid-template-columns: 1fr 1fr; }
+}
