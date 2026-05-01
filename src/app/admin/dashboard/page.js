@@ -16,6 +16,7 @@ import './dashboard.css'
 
 export default function AdminDashboard() {
   const router = useRouter()
+  const [authorized, setAuthorized] = useState(false)
   const [stats, setStats] = useState({
     totalUsers: 0,
     activeToday: 0,
@@ -28,17 +29,20 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true)
   const [selectedMsg, setSelectedMsg] = useState(null)
 
-  // Auth guard
+  // Auth guard — blocks ALL rendering until confirmed
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      if (!localStorage.getItem('sordo_admin')) {
-        router.replace('/admin/login')
-      }
+    const isAdmin = localStorage.getItem('sordo_admin')
+    if (!isAdmin) {
+      router.replace('/admin/login')
+    } else {
+      setAuthorized(true)
     }
   }, [])
 
-  // Fetch all data
+  // Fetch all data — only runs if authorized
   useEffect(() => {
+    if (!authorized) return
+
     async function fetchData() {
       try {
         // --- Users ---
@@ -91,11 +95,10 @@ export default function AdminDashboard() {
       }
     }
     fetchData()
-  }, [])
+  }, [authorized])
 
   // Mark message as read when clicked
   const handleMsgClick = async (msg) => {
-    // Toggle off if already selected
     if (selectedMsg?.id === msg.id) {
       setSelectedMsg(null)
       return
@@ -103,23 +106,16 @@ export default function AdminDashboard() {
 
     setSelectedMsg(msg)
 
-    // Only update if still unread
     if (msg.status === 'unread') {
       try {
         await updateDoc(doc(db, 'contact_submissions', msg.id), { status: 'read' })
-
-        // Update local messages list
         setMessages(prev =>
           prev.map(m => m.id === msg.id ? { ...m, status: 'read' } : m)
         )
-
-        // Decrement unread count
         setStats(prev => ({
           ...prev,
           unreadMessages: Math.max(0, prev.unreadMessages - 1),
         }))
-
-        // Update selectedMsg to reflect read status
         setSelectedMsg({ ...msg, status: 'read' })
       } catch (err) {
         console.error('Failed to mark as read:', err)
@@ -133,6 +129,9 @@ export default function AdminDashboard() {
   }
 
   const maxCount = Math.max(...signupChart.map(d => d.count), 1)
+
+  // Block render entirely until auth check is done
+  if (!authorized) return null
 
   if (loading) {
     return (
@@ -177,7 +176,7 @@ export default function AdminDashboard() {
         <div className="admin-header">
           <div>
             <h1 className="admin-header-title">Dashboard</h1>
-            <p className="admin-header-sub">Welcome back, admin</p>
+            <p className="admin-header-sub">Welcome back, Ahmed 👋</p>
           </div>
           <div className="admin-header-date">
             {new Date().toLocaleDateString('en', { weekday: 'long', month: 'long', day: 'numeric' })}
