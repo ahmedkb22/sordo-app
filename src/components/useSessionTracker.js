@@ -3,7 +3,7 @@
 // Usage: call useSessionTracker({ uid, type: 'call' | 'entrainement' })
 
 import { useEffect, useRef, useCallback } from 'react'
-import { db } from '../../firebase'
+import { db } from '../firebase'
 import { doc, getDoc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore'
 
 const FLUSH_INTERVAL = 60 // flush to Firestore every 60 seconds
