@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { db } from '../../../firebase'
-import { collection, getDocs, query, orderBy } from 'firebase/firestore'
+import { collection, getDocs, query, orderBy, doc, updateDoc } from 'firebase/firestore'
 import {
   LayoutDashboard,
   Mail,
@@ -93,6 +93,40 @@ export default function AdminDashboard() {
     fetchData()
   }, [])
 
+  // Mark message as read when clicked
+  const handleMsgClick = async (msg) => {
+    // Toggle off if already selected
+    if (selectedMsg?.id === msg.id) {
+      setSelectedMsg(null)
+      return
+    }
+
+    setSelectedMsg(msg)
+
+    // Only update if still unread
+    if (msg.status === 'unread') {
+      try {
+        await updateDoc(doc(db, 'contact_submissions', msg.id), { status: 'read' })
+
+        // Update local messages list
+        setMessages(prev =>
+          prev.map(m => m.id === msg.id ? { ...m, status: 'read' } : m)
+        )
+
+        // Decrement unread count
+        setStats(prev => ({
+          ...prev,
+          unreadMessages: Math.max(0, prev.unreadMessages - 1),
+        }))
+
+        // Update selectedMsg to reflect read status
+        setSelectedMsg({ ...msg, status: 'read' })
+      } catch (err) {
+        console.error('Failed to mark as read:', err)
+      }
+    }
+  }
+
   const handleLogout = () => {
     localStorage.removeItem('sordo_admin')
     router.push('/admin/login')
@@ -143,7 +177,7 @@ export default function AdminDashboard() {
         <div className="admin-header">
           <div>
             <h1 className="admin-header-title">Dashboard</h1>
-            <p className="admin-header-sub">Welcome back, Ahmed </p>
+            <p className="admin-header-sub">Welcome back, admin</p>
           </div>
           <div className="admin-header-date">
             {new Date().toLocaleDateString('en', { weekday: 'long', month: 'long', day: 'numeric' })}
@@ -231,7 +265,7 @@ export default function AdminDashboard() {
                 <div
                   key={msg.id}
                   className={`admin-msg-row ${msg.status === 'unread' ? 'unread' : ''} ${selectedMsg?.id === msg.id ? 'selected' : ''}`}
-                  onClick={() => setSelectedMsg(selectedMsg?.id === msg.id ? null : msg)}
+                  onClick={() => handleMsgClick(msg)}
                 >
                   <div className="admin-msg-left">
                     {msg.status === 'unread' && <span className="admin-msg-dot" />}
