@@ -569,3 +569,77 @@
   margin: 0;
   letter-spacing: 0.02em;
 }
+
+/* ─────────────────────────────────────────────────────────────
+   ACADEMIC MODE CARD  — append these rules to your dashboard.css
+   ─────────────────────────────────────────────────────────────*/
+
+/* Feature chip row */
+.dash-academic-card__features {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+}
+
+.dash-academic-card__feature-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 500;
+  background: rgba(251, 191, 36, 0.08);
+  border: 1px solid rgba(251, 191, 36, 0.2);
+  color: rgba(251, 191, 36, 0.75);
+  letter-spacing: 0.01em;
+}
+
+.dash-academic-card__feature-chip--soon {
+  background: rgba(251, 191, 36, 0.14);
+  border-color: rgba(251, 191, 36, 0.35);
+  color: #fbbf24;
+  font-weight: 600;
+}
+
+/* Upgrade CTA link at bottom */
+.dash-academic-card__upgrade-cta {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  margin-top: 0.85rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  opacity: 0.9;
+  transition: opacity 0.2s;
+}
+
+.dash-academic-card:hover .dash-academic-card__upgrade-cta {
+  opacity: 1;
+}
+
+/* Lock overlay on icon */
+.dash-academic-card__lock-overlay {
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  background: rgba(15, 15, 20, 0.9);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fbbf24;
+}
+
+/* Dimmed state for locked card */
+.dash-academic-card--locked .dash-action-card__desc {
+  opacity: 0.6;
+}
+
+.dash-academic-card--locked .dash-academic-card__features {
+  opacity: 0.55;
+}

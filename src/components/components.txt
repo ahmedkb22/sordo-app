@@ -1,0 +1,787 @@
+usevoicesubtitles.js:
+'use client'
+import { useRef, useState, useCallback, useEffect } from 'react'
+
+const SUBTITLE_LINGER_MS = 3000
+
+export function useVoiceSubtitles() {
+  const [subtitle, setSubtitle]       = useState(null)
+  const [voiceActive, setVoiceActive] = useState(false)
+  const [selectedLang, setSelectedLang] = useState('en-US') // Default to English
+
+  const recognitionRef = useRef(null)
+  const lingerTimer    = useRef(null)
+
+  const clearLinger = () => {
+    if (lingerTimer.current) clearTimeout(lingerTimer.current)
+  }
+
+  const scheduleClear = useCallback(() => {
+    clearLinger()
+    lingerTimer.current = setTimeout(() => setSubtitle(null), SUBTITLE_LINGER_MS)
+  }, [])
+
+  const startVoice = useCallback(() => {
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SpeechRecognition) {
+      console.warn('useVoiceSubtitles: SpeechRecognition not supported')
+      return
+    }
+
+    const rec = new SpeechRecognition()
+    rec.continuous          = true
+    rec.interimResults      = true
+    rec.lang                = selectedLang // Set the selected language
+    
+    // Arabic (ar-EG) or English (en-US)
+
+    rec.onresult = (e) => {
+      let interim = ''
+      let final   = ''
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript
+        if (e.results[i].isFinal) final += t
+        else interim += t
+      }
+      const text = (final || interim).trim()
+      if (text) {
+        setSubtitle({ text, isFinal: !!final })
+        if (final) scheduleClear()
+        else clearLinger()            // don't clear while still speaking
+      }
+    }
+
+    rec.onerror = (e) => {
+      if (e.error === 'no-speech') return   // silent gap, ignore
+      console.warn('SpeechRecognition error:', e.error)
+    }
+
+    rec.onend = () => {
+      // Auto-restart if still active (browser stops on silence)
+      if (recognitionRef.current === rec && voiceActiveRef.current) {
+        try { rec.start() } catch (_) {}
+      }
+    }
+
+    recognitionRef.current = rec
+    setVoiceActive(true)
+    voiceActiveRef.current = true
+    rec.start()
+  }, [scheduleClear, selectedLang])
+
+  const stopVoice = useCallback(() => {
+    voiceActiveRef.current = false
+    setVoiceActive(false)
+    recognitionRef.current?.stop()
+    recognitionRef.current = null
+    clearLinger()
+    setSubtitle(null)
+  }, [])
+
+  const changeLanguage = useCallback((lang) => {
+    setSelectedLang(lang)
+    if (voiceActive) {
+      // Restart recognition with new language
+      stopVoice()
+      setTimeout(() => startVoice(), 100)
+    }
+  }, [voiceActive, stopVoice, startVoice])
+
+  // Internal ref so `onend` closure can read current active state
+  const voiceActiveRef = useRef(false)
+
+  useEffect(() => () => stopVoice(), [])   // cleanup on unmount
+
+  return { subtitle, startVoice, stopVoice, voiceActive, changeLanguage, selectedLang }
+}
+
+usesessiontracker.js:
+// src/components/useSessionTracker.js
+// Tracks time spent in a session and writes it to Firestore
+// Usage: call useSessionTracker({ uid, type: 'call' | 'entrainement' })
+
+import { useEffect, useRef, useCallback } from 'react'
+import { db } from '../firebase'
+import { doc, getDoc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore'
+
+const FLUSH_INTERVAL = 60 // flush to Firestore every 60 seconds
+
+export function useSessionTracker({ uid, type, active = true }) {
+  const startTimeRef    = useRef(null)
+  const lastFlushRef    = useRef(null)
+  const intervalRef     = useRef(null)
+  const accumulatedRef  = useRef(0) // minutes accumulated this session
+
+  const getTodayKey = () => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+  }
+
+  const flushToFirestore = useCallback(async (finalFlush = false) => {
+    if (!uid || !startTimeRef.current) return
+
+    const now = new Date()
+    const elapsedMs = now - lastFlushRef.current
+    const elapsedMinutes = elapsedMs / 1000 / 60
+
+    if (elapsedMinutes < 0.1 && !finalFlush) return // skip tiny intervals
+
+    lastFlushRef.current = now
+    accumulatedRef.current += elapsedMinutes
+
+    const todayKey = getTodayKey()
+    const userRef  = doc(db, 'users', uid)
+
+    try {
+      const snap = await getDoc(userRef)
+      const data  = snap.data() || {}
+      const usage = data.usage || {}
+      const byDay = usage.usageByDay || {}
+      const today = byDay[todayKey] || { callMinutes: 0, entrainementMinutes: 0, total: 0 }
+
+      const minuteField = type === 'call' ? 'callMinutes' : 'entrainementMinutes'
+
+      const updatedToday = {
+        ...today,
+        [minuteField]: (today[minuteField] || 0) + elapsedMinutes,
+        total: (today.total || 0) + elapsedMinutes,
+      }
+
+      await updateDoc(userRef, {
+        [`usage.${minuteField}`]:                     (usage[minuteField] || 0) + elapsedMinutes,
+        'usage.totalMinutes':                          (usage.totalMinutes || 0) + elapsedMinutes,
+        [`usage.usageByDay.${todayKey}`]:              updatedToday,
+        'usage.lastSeen':                              serverTimestamp(),
+      })
+    } catch (err) {
+      console.error('Session tracker flush error:', err)
+    }
+  }, [uid, type])
+
+  const startSession = useCallback(() => {
+    if (!uid) return
+    const now = new Date()
+    startTimeRef.current   = now
+    lastFlushRef.current   = now
+    accumulatedRef.current = 0
+
+    // Flush every FLUSH_INTERVAL seconds
+    intervalRef.current = setInterval(() => {
+      flushToFirestore(false)
+    }, FLUSH_INTERVAL * 1000)
+  }, [uid, flushToFirestore])
+
+  const endSession = useCallback(async () => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current)
+      intervalRef.current = null
+    }
+    await flushToFirestore(true)
+    startTimeRef.current = null
+  }, [flushToFirestore])
+
+  // Auto start/stop based on active prop
+  useEffect(() => {
+    if (active && uid) {
+      startSession()
+    } else if (!active) {
+      endSession()
+    }
+    return () => {
+      if (active) endSession()
+    }
+  }, [active, uid])
+
+  // Flush on page unload
+  useEffect(() => {
+    const handleUnload = () => { flushToFirestore(true) }
+    window.addEventListener('beforeunload', handleUnload)
+    return () => window.removeEventListener('beforeunload', handleUnload)
+  }, [flushToFirestore])
+
+  return { endSession }
+}
+useplanlimits.js:
+// src/components/usePlanLimits.js
+// Reads user's plan + today's usage and returns limit info
+
+import { useState, useEffect } from 'react'
+import { db } from '../firebase'
+import { doc, getDoc } from 'firebase/firestore'
+
+export const PLAN_LIMITS = {
+  free:  { callMinutes: 60,  entrainementMinutes: 60,  label: 'Sordo Free',  color: '#60a5fa' },
+  plus:  { callMinutes: 360, entrainementMinutes: 360, label: 'Sordo Plus',  color: '#a78bfa' },
+  pro:   { callMinutes: null, entrainementMinutes: null, label: 'Sordo Pro', color: '#4ade80' },
+  vip:   { callMinutes: null, entrainementMinutes: null, label: 'Sordo VIP', color: '#fbbf24' },
+}
+
+const getTodayKey = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+}
+
+export function usePlanLimits({ uid, type }) {
+  const [plan, setPlan]               = useState('free')
+  const [minutesUsed, setMinutesUsed] = useState(0)
+  const [minutesLimit, setMinutesLimit] = useState(60)
+  const [canUse, setCanUse]           = useState(true)
+  const [loading, setLoading]         = useState(true)
+
+  useEffect(() => {
+    if (!uid) return
+
+    async function check() {
+      try {
+        const snap = await getDoc(doc(db, 'users', uid))
+        const data = snap.data() || {}
+
+        const userPlan   = data.subscription?.plan || 'free'
+        const limits     = PLAN_LIMITS[userPlan] || PLAN_LIMITS.free
+        const todayKey   = getTodayKey()
+        const todayUsage = data.usage?.usageByDay?.[todayKey] || {}
+
+        const field      = type === 'call' ? 'callMinutes' : 'entrainementMinutes'
+        const used       = todayUsage[field] || 0
+        const limit      = limits[field]
+
+        setPlan(userPlan)
+        setMinutesUsed(Math.round(used))
+        setMinutesLimit(limit)
+
+        // null limit = unlimited (pro/vip)
+        setCanUse(limit === null || used < limit)
+      } catch (err) {
+        console.error('usePlanLimits error:', err)
+        setCanUse(true) // fail open
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    check()
+  }, [uid, type])
+
+  return { plan, minutesUsed, minutesLimit, canUse, loading }
+}
+useGestureDetector.js:
+// =============================================================
+// useGestureDetector — runs fully in the browser (no backend)
+// MediaPipe → normalize → TFJS model → voting → onDetected
+// =============================================================
+import { useRef, useCallback, useEffect } from 'react'
+import * as tf from '@tensorflow/tfjs'
+
+const SEQUENCE_LENGTH      = 30
+const PREDICTION_THRESHOLD = 0.50
+const BUFFER_SIZE          = 15
+const CONFIRM_VOTES        = 4
+const NO_HAND_RESET_AFTER  = 10
+
+// =============================================================
+// NORMALIZATION — unchanged from original
+// =============================================================
+function normalizeLandmarks(raw126) {
+  const arr = []
+  for (let h = 0; h < 2; h++) {
+    const hand = []
+    for (let j = 0; j < 21; j++) {
+      const base = h * 63 + j * 3
+      hand.push([raw126[base], raw126[base + 1], raw126[base + 2]])
+    }
+    arr.push(hand)
+  }
+
+  for (let h = 0; h < 2; h++) {
+    const hasData = arr[h].some(p => p[0] !== 0 || p[1] !== 0 || p[2] !== 0)
+    if (!hasData) continue
+
+    const [wx, wy, wz] = arr[h][0]
+    for (let j = 0; j < 21; j++) {
+      arr[h][j][0] -= wx
+      arr[h][j][1] -= wy
+      arr[h][j][2] -= wz
+    }
+
+    let maxVal = 1e-6
+    for (let j = 0; j < 21; j++) {
+      for (let k = 0; k < 3; k++) {
+        maxVal = Math.max(maxVal, Math.abs(arr[h][j][k]))
+      }
+    }
+    for (let j = 0; j < 21; j++) {
+      arr[h][j][0] /= maxVal
+      arr[h][j][1] /= maxVal
+      arr[h][j][2] /= maxVal
+    }
+  }
+
+  const out = []
+  for (let h = 0; h < 2; h++) {
+    for (let j = 0; j < 21; j++) {
+      out.push(arr[h][j][0], arr[h][j][1], arr[h][j][2])
+    }
+  }
+  return out
+}
+
+// =============================================================
+// HAND ASSIGNMENT — unchanged from original
+// =============================================================
+function assignHands(multiHandLandmarks, multiHandedness) {
+  const landmarks = new Array(126).fill(0.0)
+  const handedness = multiHandedness || []
+
+  multiHandLandmarks.slice(0, 2).forEach((hand, i) => {
+    const label = handedness[i]?.classification?.[0]?.label || 'Right'
+    const slot = label === 'Right' ? 1 : 0
+
+    hand.forEach((lm, j) => {
+      const base = slot * 63 + j * 3
+      landmarks[base]     = lm.x
+      landmarks[base + 1] = lm.y
+      landmarks[base + 2] = lm.z
+    })
+  })
+
+  return normalizeLandmarks(landmarks)
+}
+
+// =============================================================
+// HOOK
+// =============================================================
+export function useGestureDetector({ onDetected, onNoHand }) {
+  const handsRef        = useRef(null)
+  const modelRef        = useRef(null)   // TFJS model
+  const labelsRef       = useRef([])     // labels from labels.json
+  const sequenceRef     = useRef([])
+  const frameCounterRef = useRef(0)
+  const noHandFramesRef = useRef(0)
+  const detectingRef    = useRef(false)
+  const animFrameRef    = useRef(null)
+  const canvasRef       = useRef(null)
+
+  const predBufferRef = useRef([])
+  const probBufferRef = useRef([])
+
+  const currentWordRef       = useRef('')
+  const currentConfidenceRef = useRef(0.0)
+
+  // =============================================================
+  // LOAD MODEL + LABELS on mount
+  // =============================================================
+  useEffect(() => {
+    async function loadModel() {
+      try {
+        console.log('Loading Sordo TFJS model...')
+        const [model, labelsRes] = await Promise.all([
+          tf.loadLayersModel('/sordo_tfjs_model/model.json'),
+          fetch('/labels.json')
+        ])
+        const labels = await labelsRes.json()
+        modelRef.current  = model
+        // labels.json can be an array ["hello","thanks",...] or object {0:"hello",...}
+        labelsRef.current = Array.isArray(labels) ? labels : Object.values(labels)
+        console.log('✅ Model loaded. Classes:', labelsRef.current)
+      } catch (err) {
+        console.error('Failed to load Sordo model:', err)
+      }
+    }
+    loadModel()
+  }, [])
+
+  // =============================================================
+  // RESET STATE
+  // =============================================================
+  function resetState() {
+    sequenceRef.current          = []
+    frameCounterRef.current      = 0
+    noHandFramesRef.current      = 0
+    predBufferRef.current        = []
+    probBufferRef.current        = []
+    currentWordRef.current       = ''
+    currentConfidenceRef.current = 0.0
+  }
+
+  // =============================================================
+  // MEDIAPIPE SETUP — unchanged from original
+  // =============================================================
+  const setupMediaPipe = useCallback(async () => {
+    const { Hands } = await import('@mediapipe/hands')
+    const hands = new Hands({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+    })
+    hands.setOptions({
+      maxNumHands: 2,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5,
+    })
+
+    hands.onResults((results) => {
+      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        noHandFramesRef.current = 0
+
+        const frameLandmarks = assignHands(
+          results.multiHandLandmarks,
+          results.multiHandedness
+        )
+
+        sequenceRef.current.push(frameLandmarks)
+        if (sequenceRef.current.length > SEQUENCE_LENGTH) {
+          sequenceRef.current.shift()
+        }
+
+        frameCounterRef.current += 1
+
+        if (
+          sequenceRef.current.length === SEQUENCE_LENGTH &&
+          frameCounterRef.current % 3 === 0
+        ) {
+          predictSign([...sequenceRef.current])
+        }
+
+      } else {
+        noHandFramesRef.current += 1
+        if (noHandFramesRef.current >= NO_HAND_RESET_AFTER) {
+          resetState()
+          onNoHand?.()
+        }
+      }
+    })
+
+    handsRef.current = hands
+  }, [onNoHand])
+
+  // =============================================================
+  // PREDICT — now runs locally with TFJS, same voting logic
+  // =============================================================
+  const predictSign = useCallback(async (sequence) => {
+    if (!modelRef.current || labelsRef.current.length === 0) return
+
+    try {
+      // Run inference inside tf.tidy to avoid memory leaks
+      const probabilities = tf.tidy(() => {
+        const input = tf.tensor3d([sequence], [1, SEQUENCE_LENGTH, 126])
+        const output = modelRef.current.predict(input)
+        return output.dataSync() // Float32Array of 8 probabilities
+      })
+
+      // Find best prediction
+      let maxProb = 0
+      let maxIdx  = 0
+      for (let i = 0; i < probabilities.length; i++) {
+        if (probabilities[i] > maxProb) {
+          maxProb = probabilities[i]
+          maxIdx  = i
+        }
+      }
+
+      const confidence = maxProb
+      const word       = labelsRef.current[maxIdx] || `class_${maxIdx}`
+      const detected   = confidence >= PREDICTION_THRESHOLD
+
+      if (detected) {
+        predBufferRef.current.push(word)
+        if (predBufferRef.current.length > BUFFER_SIZE) {
+          predBufferRef.current.shift()
+        }
+
+        const votes = predBufferRef.current.filter(w => w === word).length
+
+        if (votes >= CONFIRM_VOTES) {
+          currentWordRef.current       = word
+          currentConfidenceRef.current = confidence
+          onDetected?.({
+            detected:   true,
+            word:       word,
+            confidence: Math.round(confidence * 100),
+          })
+        }
+
+      } else {
+        predBufferRef.current        = []
+        probBufferRef.current        = []
+        currentWordRef.current       = ''
+        currentConfidenceRef.current = confidence
+
+        onDetected?.({
+          detected:   false,
+          word:       null,
+          confidence: Math.round(confidence * 100),
+        })
+      }
+
+    } catch (e) {
+      console.error('Local prediction error:', e)
+    }
+  }, [onDetected])
+
+  // =============================================================
+  // FRAME LOOP — unchanged from original
+  // =============================================================
+  const runLoop = useCallback((videoRef) => {
+    if (!detectingRef.current) return
+    const video  = videoRef.current
+    const canvas = canvasRef.current
+    if (!video || !canvas || !handsRef.current) {
+      animFrameRef.current = requestAnimationFrame(() => runLoop(videoRef))
+      return
+    }
+    canvas.width  = video.videoWidth  || 640
+    canvas.height = video.videoHeight || 480
+    const ctx = canvas.getContext('2d')
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+    handsRef.current.send({ image: canvas })
+      .then(() => {
+        animFrameRef.current = requestAnimationFrame(() => runLoop(videoRef))
+      })
+      .catch(() => {
+        animFrameRef.current = requestAnimationFrame(() => runLoop(videoRef))
+      })
+  }, [])
+
+  // =============================================================
+  // START / STOP — unchanged from original
+  // =============================================================
+  const start = useCallback(async (videoRef) => {
+    await setupMediaPipe()
+    detectingRef.current = true
+    runLoop(videoRef)
+  }, [setupMediaPipe, runLoop])
+
+  const stop = useCallback(() => {
+    detectingRef.current = false
+    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current)
+    resetState()
+  }, [])
+
+  return { canvasRef, start, stop, detectingRef }
+}
+phraseengine:
+// =============================================================
+// PHRASE ENGINE — shared across call & entrainement pages
+// Edit SINGLE_SIGN_PHRASES and MULTI_SIGN_PHRASES to match
+// the words your model actually returns (labels.json)
+// =============================================================
+
+export const SINGLE_SIGN_PHRASES = {
+  'hello':       'Hello, how are you?',
+  'bye':         'Goodbye, see you later!',
+  'thanks':      'Thank you very much!',
+  'sorry':       'I am sorry.',
+  'help':        'I need help.',
+  'yes':         'Yes.',
+  'no':          'No.',
+  'please':      'Please.',
+  'good':        'That is good!',
+  'bad':         'That is bad.',
+  'love':        'I love you.',
+  'hungry':      'I am hungry.',
+  'tired':       'I am tired.',
+  'happy':       'I am happy!',
+  'sad':         'I am sad.',
+  'water':       'Can I have some water?',
+  'bathroom':    'Where is the bathroom?',
+  'stop':        'Please stop.',
+  'wait':        'Please wait.',
+  'come':        'Please come here.',
+  'my':          'My.',
+  'name':        'Name.',
+  'abdessamed':  'Abdessamed.',
+  'ahmed':       'Ahmed.',
+}
+
+// Multi-sign combinations — order matters, must appear in sequence
+// within COMBO_WINDOW_MS milliseconds
+export const MULTI_SIGN_PHRASES = [
+  { signs: ['my', 'name', 'abdessamed'], phrase: 'My name is Abdessamed.' },
+  { signs: ['my', 'name', 'ahmed'],      phrase: 'My name is Ahmed.' },
+  { signs: ['my', 'name'],               phrase: 'My name is...' },
+  { signs: ['name', 'ahmed'],            phrase: 'My name is Ahmed.' },
+  { signs: ['name', 'sara'],             phrase: 'My name is Sara.' },
+  { signs: ['name', 'omar'],             phrase: 'My name is Omar.' },
+  { signs: ['how', 'are', 'you'],        phrase: 'How are you?' },
+  { signs: ['i', 'am', 'fine'],          phrase: 'I am fine, thank you.' },
+  { signs: ['nice', 'meet'],             phrase: 'Nice to meet you!' },
+  { signs: ['where', 'from'],            phrase: 'Where are you from?' },
+  { signs: ['i', 'from', 'algeria'],     phrase: 'I am from Algeria.' },
+  { signs: ['what', 'name'],             phrase: 'What is your name?' },
+  { signs: ['i', 'deaf'],                phrase: 'I am deaf.' },
+  { signs: ['i', 'hear'],                phrase: 'I can hear.' },
+  { signs: ['call', 'police'],           phrase: 'Please call the police!' },
+  { signs: ['call', 'doctor'],           phrase: 'Please call a doctor!' },
+  { signs: ['i', 'understand'],          phrase: 'I understand.' },
+  { signs: ['i', 'not', 'understand'],   phrase: 'I do not understand.' },
+]
+
+export const COMBO_WINDOW_MS  = 5000
+export const SUBTITLE_DURATION = 4000
+
+// Check if needles appear as an ordered subsequence in haystack
+function isSubsequence(needles, haystack) {
+  let ni = 0
+  for (const h of haystack) {
+    if (h === needles[ni]) ni++
+    if (ni === needles.length) return true
+  }
+  return false
+}
+
+// Factory — call once per component mount
+export function buildPhraseEngine() {
+  let signHistory = [] // [{ word: string, time: number }]
+
+  function addSign(word) {
+    const now = Date.now()
+    signHistory = signHistory.filter(s => now - s.time < COMBO_WINDOW_MS)
+    signHistory.push({ word: word.toLowerCase(), time: now })
+    return resolvePhrase()
+  }
+
+  function resolvePhrase() {
+    const words = signHistory.map(s => s.word)
+
+    // Longest combo first
+    const sorted = [...MULTI_SIGN_PHRASES].sort((a, b) => b.signs.length - a.signs.length)
+    for (const combo of sorted) {
+      if (isSubsequence(combo.signs, words)) {
+        signHistory = []
+        return { phrase: combo.phrase, type: 'combo' }
+      }
+    }
+
+    const lastWord = words[words.length - 1]
+    if (SINGLE_SIGN_PHRASES[lastWord]) {
+      signHistory = []
+      return { phrase: SINGLE_SIGN_PHRASES[lastWord], type: 'single' }
+    }
+
+    return { phrase: lastWord.toUpperCase(), type: 'raw' }
+  }
+
+  function clear() { signHistory = [] }
+  function getPending() { return signHistory.map(s => s.word.toUpperCase()) }
+
+  return { addSign, clear, getPending }
+}
+
+// Subtitle background color based on phrase type
+export function subtitleStyle(type) {
+  if (type === 'combo')  return { bg: 'rgba(124,58,237,0.88)',  border: 'rgba(167,139,250,0.4)' }
+  if (type === 'single') return { bg: 'rgba(22,163,74,0.88)',   border: 'rgba(134,239,172,0.4)' }
+  return                        { bg: 'rgba(37,99,235,0.82)',   border: 'rgba(147,197,253,0.3)' }
+}
+paywallmodal.js:
+// src/components/PaywallModal.js
+'use client'
+import Link from 'next/link'
+import { X, Clock, Zap, Crown, Star } from 'lucide-react'
+import { PLAN_LIMITS } from './usePlanLimits'
+import './PaywallModal.css'
+
+const PLANS = [
+  {
+    key: 'plus',
+    name: 'Sordo Plus',
+    price: '500 DA/mois',
+    color: '#a78bfa',
+    icon: <Zap size={18} />,
+    perks: ['6h appel/jour', '6h entraînement/jour', 'Priorité support'],
+  },
+  {
+    key: 'pro',
+    name: 'Sordo Pro',
+    price: '1200 DA/mois',
+    color: '#4ade80',
+    icon: <Crown size={18} />,
+    perks: ['Illimité appel', 'Illimité entraînement', 'Support prioritaire', 'Accès anticipé'],
+    recommended: true,
+  },
+  {
+    key: 'vip',
+    name: 'Sordo VIP',
+    price: 'Sur devis',
+    color: '#fbbf24',
+    icon: <Star size={18} />,
+    perks: ['Tout Pro inclus', 'Mode académique', 'Déploiement institution', 'Support dédié'],
+  },
+]
+
+export default function PaywallModal({ type, minutesUsed, minutesLimit, plan, onClose }) {
+  const typeLabel = type === 'call' ? 'appel' : 'entraînement'
+
+  return (
+    <div className="paywall-overlay">
+      <div className="paywall-modal">
+
+        {/* Close */}
+        <button className="paywall-close" onClick={onClose}>
+          <X size={18} />
+        </button>
+
+        {/* Header */}
+        <div className="paywall-header">
+          <div className="paywall-icon">
+            <Clock size={28} color="#f87171" />
+          </div>
+          <h2 className="paywall-title">Limite atteinte</h2>
+          <p className="paywall-desc">
+            Vous avez utilisé <strong>{minutesUsed} min</strong> sur{' '}
+            <strong>{minutesLimit} min</strong> de {typeLabel} aujourd'hui avec le plan{' '}
+            <span style={{ color: PLAN_LIMITS[plan]?.color }}>{PLAN_LIMITS[plan]?.label}</span>.
+          </p>
+          <div className="paywall-progress-wrap">
+            <div className="paywall-progress-bar">
+              <div
+                className="paywall-progress-fill"
+                style={{ width: `${Math.min((minutesUsed / minutesLimit) * 100, 100)}%` }}
+              />
+            </div>
+            <span className="paywall-progress-label">{minutesUsed}/{minutesLimit} min</span>
+          </div>
+        </div>
+
+        {/* Plans */}
+        <div className="paywall-plans">
+          {PLANS.map(p => (
+            <div
+              key={p.key}
+              className={`paywall-plan ${p.recommended ? 'paywall-plan--recommended' : ''}`}
+              style={{ borderColor: p.recommended ? p.color : undefined }}
+            >
+              {p.recommended && (
+                <div className="paywall-plan-badge" style={{ background: p.color }}>
+                  Recommandé
+                </div>
+              )}
+              <div className="paywall-plan-icon" style={{ color: p.color }}>
+                {p.icon}
+              </div>
+              <h3 className="paywall-plan-name" style={{ color: p.color }}>{p.name}</h3>
+              <p className="paywall-plan-price">{p.price}</p>
+              <ul className="paywall-plan-perks">
+                {p.perks.map((perk, i) => (
+                  <li key={i}>✓ {perk}</li>
+                ))}
+              </ul>
+              <Link
+                href={`/pricing?plan=${p.key}`}
+                className="paywall-plan-btn"
+                style={{ background: p.color }}
+              >
+                Choisir
+              </Link>
+            </div>
+          ))}
+        </div>
+
+        <p className="paywall-footer">
+          Revenez demain pour continuer gratuitement, ou passez à un plan supérieur.
+        </p>
+
+      </div>
+    </div>
+  )
+}

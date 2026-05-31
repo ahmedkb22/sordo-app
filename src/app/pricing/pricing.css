@@ -340,3 +340,49 @@
   padding-top: 1.5rem;
   border-top: 1px solid rgba(51, 65, 85, 0.3);
 }
+
+
+/* ─────────────────────────────────────────────────────────────
+   PRICING PAGE — Academic Mode additions
+   Append these rules to your pricing.css
+   ─────────────────────────────────────────────────────────────*/
+
+/* ── Academic Mode banner between header and cards ── */
+.pricing-academic-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.75rem 1.1rem;
+  border-radius: 10px;
+  background: rgba(251, 191, 36, 0.07);
+  border: 1px solid rgba(251, 191, 36, 0.22);
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.75);
+  margin-bottom: 1.75rem;
+  line-height: 1.5;
+  flex-shrink: 0;
+}
+
+/* ── Academic feature row inside plan card ── */
+.pricing-card__feature--academic {
+  font-weight: 600;
+  background: rgba(251, 191, 36, 0.07);
+  border-radius: 6px;
+  padding: 0.25rem 0.5rem;
+  margin-top: 0.25rem;
+  border: 1px solid rgba(251, 191, 36, 0.2);
+}
+
+/* ── Lock indicator row for plans without academic mode ── */
+.pricing-card__academic-lock {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.2);
+  margin-top: 0.5rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  letter-spacing: 0.02em;
+}

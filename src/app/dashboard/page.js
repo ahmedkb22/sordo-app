@@ -24,9 +24,15 @@ import {
   Clock,
   ChevronRight,
   Infinity,
+  GraduationCap,   // ← Academic Mode icon
+  Lock,            // ← Lock icon for non-VIP
+  Building2,       // ← Enterprise icon
 } from 'lucide-react'
 import './dashboard.css'
 
+// ─────────────────────────────────────────────
+// PLAN META — single source of truth for the UI
+// ─────────────────────────────────────────────
 const PLAN_META = {
   free: {
     name: 'Gratuit',
@@ -36,7 +42,7 @@ const PLAN_META = {
     hoverBg: 'rgba(148,163,184,0.07)',
     hoverBorder: 'rgba(148,163,184,0.2)',
     icon: <Clock size={22} />,
-    limitMin: 60,
+    limitMin: 60,          // 60 min/day for call & training
   },
   plus: {
     name: 'Plus',
@@ -46,7 +52,7 @@ const PLAN_META = {
     hoverBg: 'rgba(96,165,250,0.08)',
     hoverBorder: 'rgba(96,165,250,0.3)',
     icon: <Zap size={22} />,
-    limitMin: 360,
+    limitMin: 360,         // 6h/day
   },
   pro: {
     name: 'Pro',
@@ -56,7 +62,7 @@ const PLAN_META = {
     hoverBg: 'rgba(167,139,250,0.08)',
     hoverBorder: 'rgba(167,139,250,0.3)',
     icon: <Star size={22} />,
-    limitMin: null,
+    limitMin: null,        // unlimited
   },
   vip: {
     name: 'VIP',
@@ -66,7 +72,7 @@ const PLAN_META = {
     hoverBg: 'rgba(251,191,36,0.07)',
     hoverBorder: 'rgba(251,191,36,0.3)',
     icon: <Crown size={22} />,
-    limitMin: null,
+    limitMin: null,        // unlimited + academic mode
   },
 }
 
@@ -92,10 +98,12 @@ export default function Dashboard() {
           setUserData(data)
           setFriendsCount(data.friends?.length || 0)
 
-          // Load today's usage
+          // Load today's usage (total minutes call + training)
           const today = new Date().toISOString().slice(0, 10)
-          const todayMin = data.usage?.usageByDay?.[today] || 0
-          setUsageToday(todayMin)
+          const todayUsage = data.usage?.usageByDay?.[today] || {}
+          // Show combined usage minutes for the bar
+          const totalTodayMin = (todayUsage.callMinutes || 0) + (todayUsage.entrainementMinutes || 0)
+          setUsageToday(totalTodayMin)
 
           const { getDocs, collection, query, where } = await import('firebase/firestore')
           const q = query(
@@ -132,6 +140,7 @@ export default function Dashboard() {
 
   const planId   = userData?.subscription?.plan || 'free'
   const planMeta = PLAN_META[planId] || PLAN_META.free
+  const isVip    = planId === 'vip'
 
   return (
     <main className="dash-page">
@@ -249,6 +258,9 @@ export default function Dashboard() {
             pillBorder="rgba(124,58,237,0.25)"
           />
 
+          {/* ── ACADEMIC / ENTERPRISE MODE CARD ── */}
+          <AcademicModeCard isVip={isVip} />
+
           {/* Subscription card */}
           <SubscriptionCard
             planId={planId}
@@ -262,10 +274,106 @@ export default function Dashboard() {
   )
 }
 
+// ─────────────────────────────────────────────────────────────────
+// ACADEMIC MODE CARD
+// VIP users → clickable (href="/academic")
+// Other users → locked, redirects to /pricing
+// ─────────────────────────────────────────────────────────────────
+function AcademicModeCard({ isVip }) {
+  const href   = isVip ? '/academic' : '/pricing?plan=vip'
+  const color  = '#fbbf24'
+  const border = isVip ? 'rgba(251,191,36,0.30)' : 'rgba(251,191,36,0.15)'
+  const bg     = isVip ? 'rgba(251,191,36,0.07)' : 'rgba(251,191,36,0.04)'
+
+  return (
+    <Link
+      href={href}
+      className={`dash-action-card dash-academic-card ${!isVip ? 'dash-academic-card--locked' : ''}`}
+      style={{ borderColor: border, background: bg }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background  = isVip ? 'rgba(251,191,36,0.12)' : 'rgba(251,191,36,0.07)'
+        e.currentTarget.style.borderColor = 'rgba(251,191,36,0.35)'
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background  = bg
+        e.currentTarget.style.borderColor = border
+      }}
+    >
+      {/* VIP badge or lock */}
+      <div
+        className="dash-action-card__pill"
+        style={{
+          background: 'rgba(251,191,36,0.12)',
+          border: '1px solid rgba(251,191,36,0.3)',
+          color: color,
+        }}
+      >
+        {isVip
+          ? <><Crown size={11} strokeWidth={2.5} /> VIP Exclusif</>
+          : <><Lock size={11} strokeWidth={2.5} /> VIP uniquement</>
+        }
+      </div>
+
+      {/* Icon */}
+      <div
+        className="dash-action-card__icon"
+        style={{
+          background: 'rgba(251,191,36,0.12)',
+          border: `1px solid rgba(251,191,36,0.25)`,
+          color: color,
+          position: 'relative',
+        }}
+      >
+        <GraduationCap size={24} strokeWidth={2} />
+        {!isVip && (
+          <span className="dash-academic-card__lock-overlay">
+            <Lock size={12} strokeWidth={2.5} />
+          </span>
+        )}
+      </div>
+
+      <h3 className="dash-action-card__title" style={{ color: isVip ? color : 'rgba(251,191,36,0.55)' }}>
+        Mode Académique
+      </h3>
+
+      <p className="dash-action-card__desc">
+        {isVip
+          ? 'Intégrez Sordo dans votre institution. Enseignez la LSF à vos équipes avec un tableau de bord dédié.'
+          : 'Intégrez Sordo dans votre entreprise ou institution pour former vos équipes à la LSF. Disponible en plan VIP.'
+        }
+      </p>
+
+      {/* Feature pills — coming soon */}
+      <div className="dash-academic-card__features">
+        <span className="dash-academic-card__feature-chip">
+          <Building2 size={10} strokeWidth={2} /> Multi-utilisateurs
+        </span>
+        <span className="dash-academic-card__feature-chip">
+          <GraduationCap size={10} strokeWidth={2} /> Suivi progression
+        </span>
+        <span className="dash-academic-card__feature-chip">
+          <CheckCircle2 size={10} strokeWidth={2} /> Certifications
+        </span>
+        <span className="dash-academic-card__feature-chip dash-academic-card__feature-chip--soon">
+          🚀 Bientôt disponible
+        </span>
+      </div>
+
+      {!isVip && (
+        <p className="dash-academic-card__upgrade-cta" style={{ color }}>
+          Passer au plan VIP <ChevronRight size={13} strokeWidth={2.5} />
+        </p>
+      )}
+    </Link>
+  )
+}
+
 /* ── Subscription card ───────────────────────────────────────── */
 function SubscriptionCard({ planId, planMeta, usageToday }) {
   const isUnlimited = planMeta.limitMin === null
-  const pct = isUnlimited ? 100 : Math.min(100, Math.round((usageToday / planMeta.limitMin) * 100))
+  // For free/plus: limit is per-mode. We show combined (call + training) vs 2× limit
+  const combinedLimit = isUnlimited ? null : planMeta.limitMin * 2
+  const pct = isUnlimited ? 100 : Math.min(100, Math.round((usageToday / combinedLimit) * 100))
   const used = Math.round(usageToday)
   const limit = planMeta.limitMin
 
@@ -313,7 +421,10 @@ function SubscriptionCard({ planId, planMeta, usageToday }) {
       <div className="dash-sub-card__usage">
         <div className="dash-sub-card__usage-row">
           <span className="dash-sub-card__usage-label">
-            {isUnlimited ? 'Utilisation aujourd\'hui' : `${used} / ${limit} min`}
+            {isUnlimited
+              ? 'Utilisation aujourd\'hui (illimitée)'
+              : `${used} min utilisées / ${limit} min par mode`
+            }
           </span>
           <span className="dash-sub-card__usage-pct" style={{ color: barColor }}>
             {isUnlimited ? <Infinity size={14} /> : `${pct}%`}

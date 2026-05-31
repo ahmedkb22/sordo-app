@@ -1,0 +1,3697 @@
+admin:
+dashboard:
+'use client'
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { db } from '../../../firebase'
+import { collection, getDocs, query, orderBy } from 'firebase/firestore'
+import {
+  Users, Activity, Phone, Mail, LayoutDashboard,
+  LogOut, X, Clock, Video, Dumbbell, TrendingUp
+} from 'lucide-react'
+import './dashboard.css'
+
+export default function AdminDashboard() {
+  const router = useRouter()
+  const [stats, setStats] = useState({
+    totalUsers: 0, activeToday: 0, totalCalls: 0,
+    unreadMessages: 0, totalMessages: 0,
+    totalCallMinutes: 0, totalEntrMinutes: 0, totalMinutes: 0,
+  })
+  const [messages, setMessages]     = useState([])
+  const [signupChart, setSignupChart] = useState([])
+  const [usageChart, setUsageChart]   = useState([])
+  const [loading, setLoading]         = useState(true)
+  const [selectedMsg, setSelectedMsg] = useState(null)
+  const [activeTab, setActiveTab]     = useState('dashboard')
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if (!localStorage.getItem('sordo_admin')) router.replace('/admin/login')
+    }
+  }, [])
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        // Users
+        const usersSnap = await getDocs(collection(db, 'users'))
+        const users = usersSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+        const totalUsers = users.length
+
+        const todayStart = new Date(); todayStart.setHours(0,0,0,0)
+        const activeToday = users.filter(u => {
+          const ts = u.usage?.lastSeen?.toDate?.() || u.lastSeen?.toDate?.() || u.createdAt?.toDate?.()
+          return ts && ts >= todayStart
+        }).length
+
+        // Signup chart last 7 days
+        const days = []
+        for (let i = 6; i >= 0; i--) {
+          const d = new Date(); d.setDate(d.getDate()-i); d.setHours(0,0,0,0)
+          const label = d.toLocaleDateString('en', { weekday: 'short' })
+          const dateKey = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+          const signups = users.filter(u => {
+            const ts = u.createdAt?.toDate?.()
+            if (!ts) return false
+            const next = new Date(d); next.setDate(next.getDate()+1)
+            return ts >= d && ts < next
+          }).length
+
+          // Sum usage for this day across all users
+          const callMins = users.reduce((acc, u) => acc + (u.usage?.usageByDay?.[dateKey]?.callMinutes || 0), 0)
+          const entrMins = users.reduce((acc, u) => acc + (u.usage?.usageByDay?.[dateKey]?.entrainementMinutes || 0), 0)
+          days.push({ label, signups, callMins: Math.round(callMins), entrMins: Math.round(entrMins) })
+        }
+        setSignupChart(days)
+        setUsageChart(days)
+
+        // Total usage across all users
+        const totalCallMinutes = users.reduce((acc, u) => acc + (u.usage?.callMinutes || 0), 0)
+        const totalEntrMinutes = users.reduce((acc, u) => acc + (u.usage?.entrainementMinutes || 0), 0)
+        const totalMinutes = users.reduce((acc, u) => acc + (u.usage?.totalMinutes || 0), 0)
+
+        // Calls
+        const callsSnap = await getDocs(collection(db, 'calls'))
+        const totalCalls = callsSnap.size
+
+        // Messages
+        const msgsSnap = await getDocs(query(collection(db, 'contact_submissions'), orderBy('createdAt', 'desc')))
+        const msgs = msgsSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+        const unreadMessages = msgs.filter(m => m.status === 'unread').length
+
+        setMessages(msgs)
+        setStats({ totalUsers, activeToday, totalCalls, unreadMessages, totalMessages: msgs.length,
+          totalCallMinutes: Math.round(totalCallMinutes), totalEntrMinutes: Math.round(totalEntrMinutes),
+          totalMinutes: Math.round(totalMinutes) })
+      } catch (err) {
+        console.error('Dashboard fetch error:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchData()
+  }, [])
+
+  const handleLogout = () => { localStorage.removeItem('sordo_admin'); router.push('/admin/login') }
+
+  const fmtMins = (m) => {
+    if (m < 60) return `${m}m`
+    return `${Math.floor(m/60)}h ${m%60}m`
+  }
+
+  const maxSignup = Math.max(...signupChart.map(d => d.signups), 1)
+  const maxUsage  = Math.max(...usageChart.map(d => d.callMins + d.entrMins), 1)
+
+  if (loading) {
+    return (
+      <div className="admin-loading">
+        <div className="admin-loading-logo">SORDO</div>
+        <div className="admin-loading-spinner" />
+        <p>Loading dashboard...</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="admin-dash">
+
+      {/* Sidebar */}
+      <aside className="admin-sidebar">
+        <div className="admin-sidebar-logo">SORDO</div>
+        <p className="admin-sidebar-role">Admin Panel</p>
+        <nav className="admin-nav">
+          <div className={`admin-nav-item ${activeTab==='dashboard'?'active':''}`} onClick={()=>setActiveTab('dashboard')}>
+            <LayoutDashboard size={16} /> Dashboard
+          </div>
+          <div className={`admin-nav-item ${activeTab==='messages'?'active':''}`} onClick={()=>setActiveTab('messages')}>
+            <Mail size={16} /> Messages
+            {stats.unreadMessages > 0 && <span className="admin-nav-badge">{stats.unreadMessages}</span>}
+          </div>
+        </nav>
+        <button className="admin-logout-btn" onClick={handleLogout}>
+          <LogOut size={14} /> Sign Out
+        </button>
+      </aside>
+
+      {/* Main */}
+      <main className="admin-main">
+        <div className="admin-header">
+          <div>
+            <h1 className="admin-header-title">Dashboard</h1>
+            <p className="admin-header-sub">Welcome back, Ahmed</p>
+          </div>
+          <div className="admin-header-date">
+            {new Date().toLocaleDateString('en', { weekday: 'long', month: 'long', day: 'numeric' })}
+          </div>
+        </div>
+
+        {activeTab === 'dashboard' && (
+          <>
+            {/* Stat cards row 1 — users & calls */}
+            <div className="admin-stats-grid">
+              <div className="admin-stat-card">
+                <div className="admin-stat-icon" style={{ background: 'rgba(59,130,246,0.12)', color: '#60a5fa' }}>
+                  <Users size={20} />
+                </div>
+                <div>
+                  <p className="admin-stat-value">{stats.totalUsers}</p>
+                  <p className="admin-stat-label">Total Users</p>
+                </div>
+              </div>
+              <div className="admin-stat-card">
+                <div className="admin-stat-icon" style={{ background: 'rgba(34,197,94,0.12)', color: '#4ade80' }}>
+                  <Activity size={20} />
+                </div>
+                <div>
+                  <p className="admin-stat-value">{stats.activeToday}</p>
+                  <p className="admin-stat-label">Active Today</p>
+                </div>
+              </div>
+              <div className="admin-stat-card">
+                <div className="admin-stat-icon" style={{ background: 'rgba(168,85,247,0.12)', color: '#c084fc' }}>
+                  <Phone size={20} />
+                </div>
+                <div>
+                  <p className="admin-stat-value">{stats.totalCalls}</p>
+                  <p className="admin-stat-label">Total Calls</p>
+                </div>
+              </div>
+              <div className="admin-stat-card">
+                <div className="admin-stat-icon" style={{ background: 'rgba(251,191,36,0.12)', color: '#fbbf24' }}>
+                  <Mail size={20} />
+                </div>
+                <div>
+                  <p className="admin-stat-value">{stats.totalMessages}</p>
+                  <p className="admin-stat-label">
+                    Messages
+                    {stats.unreadMessages > 0 && <span className="admin-unread-dot">{stats.unreadMessages} unread</span>}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Stat cards row 2 — usage time */}
+            <div className="admin-stats-grid admin-stats-grid--3">
+              <div className="admin-stat-card">
+                <div className="admin-stat-icon" style={{ background: 'rgba(59,130,246,0.12)', color: '#60a5fa' }}>
+                  <Clock size={20} />
+                </div>
+                <div>
+                  <p className="admin-stat-value">{fmtMins(stats.totalMinutes)}</p>
+                  <p className="admin-stat-label">Total Usage Time</p>
+                </div>
+              </div>
+              <div className="admin-stat-card">
+                <div className="admin-stat-icon" style={{ background: 'rgba(34,197,94,0.12)', color: '#4ade80' }}>
+                  <Video size={20} />
+                </div>
+                <div>
+                  <p className="admin-stat-value">{fmtMins(stats.totalCallMinutes)}</p>
+                  <p className="admin-stat-label">Call Time</p>
+                </div>
+              </div>
+              <div className="admin-stat-card">
+                <div className="admin-stat-icon" style={{ background: 'rgba(124,58,237,0.12)', color: '#c4b5fd' }}>
+                  <Dumbbell size={20} />
+                </div>
+                <div>
+                  <p className="admin-stat-value">{fmtMins(stats.totalEntrMinutes)}</p>
+                  <p className="admin-stat-label">Training Time</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Signup chart */}
+            <div className="admin-card">
+              <h2 className="admin-card-title"><TrendingUp size={16} /> New Signups — Last 7 Days</h2>
+              <div className="admin-chart">
+                {signupChart.map((day, i) => (
+                  <div key={i} className="admin-chart-col">
+                    <span className="admin-chart-val">{day.signups > 0 ? day.signups : ''}</span>
+                    <div className="admin-chart-bar-wrap">
+                      <div className="admin-chart-bar" style={{ height: `${(day.signups / maxSignup) * 100}%` }} />
+                    </div>
+                    <span className="admin-chart-label">{day.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Usage chart */}
+            <div className="admin-card">
+              <h2 className="admin-card-title"><Clock size={16} /> Usage Minutes — Last 7 Days</h2>
+              <div className="admin-chart-legend">
+                <span className="admin-chart-legend-item admin-chart-legend-item--call"><span />Calls</span>
+                <span className="admin-chart-legend-item admin-chart-legend-item--entr"><span />Training</span>
+              </div>
+              <div className="admin-chart">
+                {usageChart.map((day, i) => (
+                  <div key={i} className="admin-chart-col">
+                    <span className="admin-chart-val">
+                      {(day.callMins + day.entrMins) > 0 ? `${day.callMins + day.entrMins}m` : ''}
+                    </span>
+                    <div className="admin-chart-bar-wrap admin-chart-bar-wrap--stacked">
+                      <div className="admin-chart-bar admin-chart-bar--entr"
+                        style={{ height: `${(day.entrMins / maxUsage) * 100}%` }} />
+                      <div className="admin-chart-bar admin-chart-bar--call"
+                        style={{ height: `${(day.callMins / maxUsage) * 100}%` }} />
+                    </div>
+                    <span className="admin-chart-label">{day.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        {activeTab === 'messages' && (
+          <div className="admin-card">
+            <h2 className="admin-card-title">
+              <Mail size={16} /> Contact Messages
+              {stats.unreadMessages > 0 && <span className="admin-card-badge">{stats.unreadMessages} unread</span>}
+            </h2>
+            {messages.length === 0 ? (
+              <p className="admin-empty">No messages yet.</p>
+            ) : (
+              <div className="admin-messages">
+                {messages.map(msg => (
+                  <div
+                    key={msg.id}
+                    className={`admin-msg-row ${msg.status==='unread'?'unread':''} ${selectedMsg?.id===msg.id?'selected':''}`}
+                    onClick={() => setSelectedMsg(selectedMsg?.id===msg.id ? null : msg)}
+                  >
+                    <div className="admin-msg-left">
+                      {msg.status === 'unread' && <span className="admin-msg-dot" />}
+                      <div>
+                        <p className="admin-msg-name">{msg.fullName}</p>
+                        <p className="admin-msg-email">{msg.email}</p>
+                      </div>
+                    </div>
+                    <div className="admin-msg-right">
+                      <p className="admin-msg-preview">
+                        {msg.description?.slice(0,60)}{msg.description?.length > 60 ? '...' : ''}
+                      </p>
+                      <p className="admin-msg-date">
+                        {msg.createdAt?.toDate?.()?.toLocaleDateString('en', {
+                          month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                        }) || '—'}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+                {selectedMsg && (
+                  <div className="admin-msg-detail">
+                    <div className="admin-msg-detail-header">
+                      <div>
+                        <h3>{selectedMsg.fullName}</h3>
+                        <p>{selectedMsg.email} {selectedMsg.phone ? `· ${selectedMsg.phone}` : ''}</p>
+                      </div>
+                      <button className="admin-msg-close" onClick={() => setSelectedMsg(null)}><X size={16} /></button>
+                    </div>
+                    <p className="admin-msg-detail-body">{selectedMsg.description}</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+      </main>
+    </div>
+  )
+}
+login:
+'use client'
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { Eye, EyeOff } from 'lucide-react'
+import './login.css'
+
+const ADMIN_USERNAME = 'ahmed_kbd22'
+const ADMIN_PASSWORD = 'Ahmedkebir2&&4'
+
+export default function AdminLogin() {
+  const router = useRouter()
+  const [form, setForm] = useState({ username: '', password: '' })
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [showPass, setShowPass] = useState(false)
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+    setTimeout(() => {
+      if (form.username === ADMIN_USERNAME && form.password === ADMIN_PASSWORD) {
+        localStorage.setItem('sordo_admin', 'true')
+        router.push('/admin/dashboard')
+      } else {
+        setError('Invalid username or password.')
+        setLoading(false)
+      }
+    }, 600)
+  }
+
+  return (
+    <div className="admin-login-bg">
+      <div className="admin-login-glow" />
+
+      <div className="admin-login-card">
+        {/* Logo */}
+        <div className="admin-login-logo">SORDO</div>
+        <p className="admin-login-sub">Admin Panel</p>
+
+        <form className="admin-login-form" onSubmit={handleSubmit}>
+          <div className="admin-form-group">
+            <label className="admin-form-label">Username</label>
+            <input
+              className="admin-form-input"
+              type="text"
+              placeholder="admin"
+              value={form.username}
+              onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
+              required
+              autoComplete="off"
+            />
+          </div>
+
+          <div className="admin-form-group">
+            <label className="admin-form-label">Password</label>
+            <div className="admin-input-wrap">
+              <input
+                className="admin-form-input"
+                type={showPass ? 'text' : 'password'}
+                placeholder="••••••••••"
+                value={form.password}
+                onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                required
+              />
+              <button
+                type="button"
+                className="admin-eye-btn"
+                onClick={() => setShowPass(v => !v)}
+              >
+                {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+          </div>
+
+          {error && <div className="admin-login-error">{error}</div>}
+
+          <button className="admin-login-btn" type="submit" disabled={loading}>
+            {loading ? 'Signing in...' : 'Sign In →'}
+          </button>
+        </form>
+
+        <p className="admin-login-footer">
+          Sordo Admin · Restricted Access
+        </p>
+      </div>
+    </div>
+  )
+}
+client : 
+call:
+'use client'
+import { useEffect, useRef, useState, useCallback } from 'react'
+import { auth, db } from '../../firebase'
+import { onAuthStateChanged } from 'firebase/auth'
+import {
+  doc, setDoc, getDoc, onSnapshot,
+  collection, addDoc, updateDoc
+} from 'firebase/firestore'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { Suspense } from 'react'
+import { useSessionTracker } from '../../components/useSessionTracker'
+import { useGestureDetector } from '../../components/useGestureDetector'
+import { useVoiceSubtitles } from '../../components/useVoiceSubtitles'
+import { usePlanLimits } from '../../components/usePlanLimits'
+import PaywallModal from '../../components/PaywallModal'
+import {
+  buildPhraseEngine,
+  subtitleStyle,
+  SINGLE_SIGN_PHRASES,
+  SUBTITLE_DURATION,
+} from '../../components/PhraseEngine'
+import {
+  PhoneCall,
+  PhoneOff,
+  PhoneMissed,
+  Mic,
+  MicOff,
+  Video,
+  VideoOff,
+  Monitor,
+  MonitorOff,
+  MessageSquare,
+  Maximize,
+  Minimize,
+  Hand,
+  Globe,
+  Captions,
+  CaptionsOff,
+  Copy,
+  Check,
+  Clock,
+  Link2,
+  UserRound,
+  Users,
+  LayoutGrid,
+  RefreshCw,
+  Home,
+  X,
+  Send,
+  ChevronUp,
+  Wifi,
+  HandMetal,
+  CircleDot,
+  Loader2,
+  CheckCircle2,
+} from 'lucide-react'
+import './call.css'
+
+const servers = {
+  iceServers: [
+    { urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] }
+  ]
+}
+
+function CallComponent() {
+  const [user, setUser]               = useState(null)
+  const [userData, setUserData]       = useState(null)
+
+  const [callId, setCallId]           = useState('')
+  const [status, setStatus]           = useState('idle')
+  const { endSession } = useSessionTracker({ uid: user?.uid, type: 'call', active: status === 'connected' })
+
+  const [friendLeft, setFriendLeft]   = useState(false)
+  const [messages, setMessages]       = useState([])
+  const [newMessage, setNewMessage]   = useState('')
+  const [micOn, setMicOn]             = useState(true)
+  const [cameraOn, setCameraOn]       = useState(true)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [sharing, setSharing]         = useState(false)
+  const [detecting, setDetecting]     = useState(false)
+  const [chatOpen, setChatOpen]       = useState(false)
+  const [signWord, setSignWord]       = useState(null)
+  const [signConfidence, setSignConf] = useState(0)
+  const [copied, setCopied]           = useState(false)
+  const [showLangMenu, setShowLangMenu] = useState(false)
+
+  const [gestureSubtitle, setGestureSubtitle] = useState(null)
+  const [pendingSigns, setPendingSigns]         = useState([])
+
+  const localVideoRef   = useRef(null)
+  const remoteVideoRef  = useRef(null)
+  const pcRef           = useRef(null)
+  const localStreamRef  = useRef(null)
+  const messagesEndRef  = useRef(null)
+  const router          = useRouter()
+
+  const lastSignRef     = useRef(null)
+  const callIdRef       = useRef('')
+  const userDataRef     = useRef(null)
+  const phraseEngineRef = useRef(buildPhraseEngine())
+  const subtitleTimeout = useRef(null)
+  const [showPaywall, setShowPaywall] = useState(false)
+  const { plan, minutesUsed, minutesLimit, canUse } = usePlanLimits({ uid: user?.uid, type: 'call' })
+
+  useEffect(() => { callIdRef.current = callId },    [callId])
+  useEffect(() => { userDataRef.current = userData }, [userData])
+
+  // ── Auth ────────────────────────────────────────────────────
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (!currentUser) router.push('/login')
+      else {
+        setUser(currentUser)
+        const docSnap = await getDoc(doc(db, 'users', currentUser.uid))
+        if (docSnap.exists()) setUserData(docSnap.data())
+      }
+    })
+    return () => unsubscribe()
+  }, [])
+
+  // ── Voice subtitles hook ────────────────────────────────────
+  const { 
+    subtitle: voiceSubtitle, 
+    startVoice, 
+    stopVoice, 
+    voiceActive,
+    changeLanguage,
+    selectedLang 
+  } = useVoiceSubtitles()
+
+  const sendVoiceSubtitleToChat = async (text, isFinal) => {
+    const currentCallId   = callIdRef.current
+    const currentUserData = userDataRef.current
+    if (!currentCallId || !text || !isFinal) return
+    try {
+      await addDoc(collection(doc(db, 'calls', currentCallId), 'messages'), {
+        text: `[voice] ${text}`,
+        sender: currentUserData?.name || 'You',
+        createdAt: new Date().toISOString(),
+        isVoice: true,
+      })
+    } catch (e) { console.log('Send voice subtitle error:', e) }
+  }
+
+  useEffect(() => {
+    if (voiceSubtitle && voiceSubtitle.isFinal && voiceSubtitle.text && status === 'connected') {
+      sendVoiceSubtitleToChat(voiceSubtitle.text, voiceSubtitle.isFinal)
+    }
+  }, [voiceSubtitle, status])
+
+  // ── Gesture callbacks ───────────────────────────────────────
+  const handleNoHand = useCallback(() => {
+    setSignWord(null)
+    setSignConf(0)
+  }, [])
+
+  const handleDetected = useCallback((data) => {
+    if (data.detected) {
+      setSignWord(data.word)
+      setSignConf(data.confidence)
+
+      if (data.confidence > 60) {
+        const result = phraseEngineRef.current.addSign(data.word)
+
+        setGestureSubtitle({ text: result.phrase, type: result.type })
+        setPendingSigns(result.type !== 'raw' ? [] : phraseEngineRef.current.getPending())
+
+        if (subtitleTimeout.current) clearTimeout(subtitleTimeout.current)
+        subtitleTimeout.current = setTimeout(() => {
+          setGestureSubtitle(null)
+          setPendingSigns([])
+          phraseEngineRef.current.clear()
+        }, SUBTITLE_DURATION)
+
+        if (lastSignRef.current !== data.word) {
+          lastSignRef.current = data.word
+          const chatText = result.type !== 'raw'
+            ? `[sign] ${result.phrase}`
+            : `[sign] ${data.word.toUpperCase()}`
+          sendSignToChat(chatText)
+          setTimeout(() => { lastSignRef.current = null }, 2000)
+        }
+      }
+    } else {
+      setSignWord(null)
+      setSignConf(data.confidence || 0)
+    }
+  }, [])
+
+  const sendSignToChat = async (text) => {
+    const currentCallId   = callIdRef.current
+    const currentUserData = userDataRef.current
+    if (!currentCallId || !text) return
+    try {
+      await addDoc(collection(doc(db, 'calls', currentCallId), 'messages'), {
+        text,
+        sender: currentUserData?.name || 'You',
+        createdAt: new Date().toISOString(),
+        isSign: true,
+      })
+    } catch (e) { console.log('Send sign error:', e) }
+  }
+
+  // ── Gesture detector ─────────────────────────────────────────
+  const { canvasRef, start, stop } = useGestureDetector({
+    onDetected: handleDetected,
+    onNoHand: handleNoHand,
+  })
+
+  const startDetection = async () => {
+    if (detecting) {
+      stop()
+      setDetecting(false)
+      setSignWord(null)
+      setSignConf(0)
+      setGestureSubtitle(null)
+      setPendingSigns([])
+      phraseEngineRef.current.clear()
+      return
+    }
+    await start(localVideoRef)
+    setDetecting(true)
+  }
+
+  useEffect(() => {
+    return () => {
+      stop()
+      if (subtitleTimeout.current) clearTimeout(subtitleTimeout.current)
+    }
+  }, [])
+
+  // ── Camera / WebRTC ─────────────────────────────────────────
+  const startCamera = async () => {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+    localStreamRef.current = stream
+    if (localVideoRef.current) localVideoRef.current.srcObject = stream
+    return stream
+  }
+
+  const createCall = async () => {
+    if (!canUse) { setShowPaywall(true); return }
+    setStatus('calling')
+    const stream = await startCamera()
+    const pc = new RTCPeerConnection(servers)
+    pcRef.current = pc
+    stream.getTracks().forEach(track => pc.addTrack(track, stream))
+    pc.ontrack = (e) => { if (remoteVideoRef.current) remoteVideoRef.current.srcObject = e.streams[0] }
+    const callDoc          = doc(collection(db, 'calls'))
+    const offerCandidates  = collection(callDoc, 'offerCandidates')
+    const answerCandidates = collection(callDoc, 'answerCandidates')
+    setCallId(callDoc.id)
+    pc.onicecandidate = (e) => { if (e.candidate) addDoc(offerCandidates, e.candidate.toJSON()) }
+    const offer = await pc.createOffer()
+    await pc.setLocalDescription(offer)
+    await setDoc(callDoc, { offer: { sdp: offer.sdp, type: offer.type }, status: 'waiting', createdBy: userData?.name || 'User' })
+    onSnapshot(collection(callDoc, 'messages'), (snap) => {
+      setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => a.createdAt?.localeCompare(b.createdAt)))
+    })
+    onSnapshot(callDoc, (snap) => {
+      const data = snap.data()
+      if (!pc.currentRemoteDescription && data?.answer) {
+        pc.setRemoteDescription(new RTCSessionDescription(data.answer))
+        setStatus('connected'); setFriendLeft(false)
+      }
+      if (data?.status === 'ended') {
+        setFriendLeft(true); setStatus('ended')
+        pc.close(); localStreamRef.current?.getTracks().forEach(t => t.stop())
+      }
+    })
+    onSnapshot(answerCandidates, (snap) => {
+      snap.docChanges().forEach(ch => {
+        if (ch.type === 'added') pc.addIceCandidate(new RTCIceCandidate(ch.doc.data()))
+      })
+    })
+  }
+
+  const joinCall = async () => {
+    if (!callId.trim()) return
+    if (!canUse) { setShowPaywall(true); return }
+    setStatus('joining')
+    const stream = await startCamera()
+    const pc = new RTCPeerConnection(servers)
+    pcRef.current = pc
+    stream.getTracks().forEach(track => pc.addTrack(track, stream))
+    pc.ontrack = (e) => { if (remoteVideoRef.current) remoteVideoRef.current.srcObject = e.streams[0] }
+    const callDoc          = doc(db, 'calls', callId)
+    const answerCandidates = collection(callDoc, 'answerCandidates')
+    const offerCandidates  = collection(callDoc, 'offerCandidates')
+    pc.onicecandidate = (e) => { if (e.candidate) addDoc(answerCandidates, e.candidate.toJSON()) }
+    const callData = (await getDoc(callDoc)).data()
+    await pc.setRemoteDescription(new RTCSessionDescription(callData.offer))
+    const answer = await pc.createAnswer()
+    await pc.setLocalDescription(answer)
+    await setDoc(callDoc, { ...callData, answer: { type: answer.type, sdp: answer.sdp }, status: 'connected', joinedBy: userData?.name || 'User' })
+    onSnapshot(collection(callDoc, 'messages'), (snap) => {
+      setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => a.createdAt?.localeCompare(b.createdAt)))
+    })
+    onSnapshot(callDoc, (snap) => {
+      const data = snap.data()
+      if (data?.status === 'ended') { setFriendLeft(true); setStatus('ended'); pc.close(); localStreamRef.current?.getTracks().forEach(t => t.stop()) }
+    })
+    onSnapshot(offerCandidates, (snap) => {
+      snap.docChanges().forEach(ch => {
+        if (ch.type === 'added') pc.addIceCandidate(new RTCIceCandidate(ch.doc.data()))
+      })
+    })
+    setStatus('connected')
+  }
+
+  const sendMessage = async () => {
+    if (!newMessage.trim() || !callId) return
+    await addDoc(collection(doc(db, 'calls', callId), 'messages'), {
+      text: newMessage, sender: userData?.name || 'User', createdAt: new Date().toISOString(),
+    })
+    setNewMessage('')
+  }
+
+  const toggleMic = () => {
+    localStreamRef.current?.getAudioTracks().forEach(t => { t.enabled = !t.enabled })
+    setMicOn(p => !p)
+  }
+
+  const toggleCamera = () => {
+    localStreamRef.current?.getVideoTracks().forEach(t => { t.enabled = !t.enabled })
+    setCameraOn(p => !p)
+  }
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) { document.documentElement.requestFullscreen(); setIsFullscreen(true) }
+    else { document.exitFullscreen(); setIsFullscreen(false) }
+  }
+
+  const shareScreen = async () => {
+    if (sharing) {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+      localStreamRef.current = stream
+      if (localVideoRef.current) localVideoRef.current.srcObject = stream
+      pcRef.current?.getSenders().find(s => s.track?.kind === 'video')?.replaceTrack(stream.getVideoTracks()[0])
+      setSharing(false)
+    } else {
+      const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true })
+      if (localVideoRef.current) localVideoRef.current.srcObject = screenStream
+      const screenTrack = screenStream.getVideoTracks()[0]
+      pcRef.current?.getSenders().find(s => s.track?.kind === 'video')?.replaceTrack(screenTrack)
+      screenTrack.onended = () => shareScreen()
+      setSharing(true)
+    }
+  }
+
+  const endCall = async () => {
+    stop()
+    stopVoice()
+    if (callId) { try { await updateDoc(doc(db, 'calls', callId), { status: 'ended' }) } catch (e) {} }
+    pcRef.current?.close()
+    localStreamRef.current?.getTracks().forEach(t => t.stop())
+    await endSession()
+    router.push('/dashboard')
+  }
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(callId)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+
+  // ── Helper: derive bubble className ─────────────────────────
+  const getBubbleClass = (msg) => {
+    const isSelf = msg.sender === userData?.name
+    if (msg.isSign) return isSelf ? 'call-chat__msg-bubble--sign-self' : 'call-chat__msg-bubble--sign-other'
+    if (msg.isVoice) return isSelf ? 'call-chat__msg-bubble--voice-self' : 'call-chat__msg-bubble--voice-other'
+    return isSelf ? 'call-chat__msg-bubble--text-self' : 'call-chat__msg-bubble--text-other'
+  }
+
+  // ── Control button sub-component ────────────────────────────
+  const CtrlBtn = ({ onClick, active, danger, icon, label }) => (
+    <button
+      onClick={onClick}
+      className={`call-ctrl-btn ${danger ? 'call-ctrl-btn--danger' : active ? 'call-ctrl-btn--active' : 'call-ctrl-btn--default'}`}
+    >
+      <span className="call-ctrl-btn__icon">{icon}</span>
+      <span className="call-ctrl-btn__label">{label}</span>
+    </button>
+  )
+
+  return (
+    <main className="call-page">
+      <canvas ref={canvasRef} style={{ display: 'none' }} />
+
+      {/* Background glow */}
+      <div aria-hidden className="call-bg-glow" />
+
+      <div className="call-container">
+
+        {/* Header */}
+        <div className="call-header">
+          <div>
+            <h1 className="call-header__title">Appel vidéo</h1>
+            <p className="call-header__status">
+              {status === 'idle'      && 'Créez ou rejoignez un appel'}
+              {status === 'calling'   && (
+                <span className="call-status-row">
+                  <Loader2 size={13} className="call-status-spin" /> En attente d'un ami...
+                </span>
+              )}
+              {status === 'joining'   && (
+                <span className="call-status-row">
+                  <Link2 size={13} /> Connexion en cours...
+                </span>
+              )}
+              {status === 'connected' && (
+                <span className="call-status-row">
+                  <CircleDot size={13} className="call-status-dot--green" /> Connecté
+                </span>
+              )}
+              {status === 'ended'     && 'Appel terminé'}
+            </p>
+          </div>
+          {status !== 'idle' && status !== 'ended' && (
+            <button onClick={endCall} className="call-header__end-btn">
+              <PhoneOff size={15} strokeWidth={2.2} /> Terminer
+            </button>
+          )}
+        </div>
+
+        {/* Friend left banner */}
+        {friendLeft && (
+          <div className="call-friend-left">
+            <p className="call-friend-left__title">
+              <PhoneMissed size={18} style={{ verticalAlign: 'middle', marginRight: '0.4rem' }} />
+              Votre ami a quitté l'appel
+            </p>
+            <div className="call-friend-left__actions">
+              <button
+                onClick={() => { setFriendLeft(false); setStatus('idle'); setCallId('') }}
+                className="call-friend-left__btn--new"
+              >
+                <RefreshCw size={15} strokeWidth={2.5} /> Nouvel appel
+              </button>
+              <Link href="/dashboard" className="call-friend-left__btn--dashboard">
+                <Home size={15} strokeWidth={2} /> Dashboard
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* Videos */}
+        {(status === 'connected' || status === 'calling' || status === 'joining') && (
+          <div className="call-videos">
+
+            {/* Local video */}
+            <div className="call-video-tile call-video-tile--local">
+              <video ref={localVideoRef} autoPlay muted playsInline />
+
+              {/* Name tag */}
+              <div
+                className="call-video-tile__nametag"
+                style={{ bottom: gestureSubtitle ? '56px' : '0.75rem' }}
+              >
+                <CircleDot size={10} className="call-nametag-dot" />
+                {userData?.name || 'Vous'}
+              </div>
+
+              {/* Gesture subtitle */}
+              {gestureSubtitle && (
+                <div
+                  className="call-video-tile__subtitle"
+                  style={{
+                    background: subtitleStyle(gestureSubtitle.type).bg,
+                    borderTop: `1px solid ${subtitleStyle(gestureSubtitle.type).border}`,
+                  }}
+                >
+                  <HandMetal size={16} className="call-video-tile__subtitle-icon" />
+                  <span className="call-video-tile__subtitle-text">{gestureSubtitle.text}</span>
+                  <span className="call-video-tile__subtitle-tag">
+                    {gestureSubtitle.type === 'combo'  && 'COMBO'}
+                    {gestureSubtitle.type === 'single' && 'PHRASE'}
+                    {gestureSubtitle.type === 'raw'    && 'SIGNE'}
+                  </span>
+                </div>
+              )}
+
+              {/* Pending combo signs */}
+              {detecting && pendingSigns.length > 0 && !gestureSubtitle && (
+                <div className="call-video-tile__pending">
+                  {pendingSigns.map((s, i) => (
+                    <span key={i} className="call-video-tile__pending-sign">{s}</span>
+                  ))}
+                  <span className="call-video-tile__pending-dots">...</span>
+                </div>
+              )}
+
+              {/* Detection badge */}
+              {detecting && (
+                <div className="call-video-tile__detection">
+                  {signWord ? (
+                    <div className="call-detection-badge call-detection-badge--detected">
+                      <HandMetal size={14} /> {signWord.toUpperCase()} — {signConfidence}%
+                    </div>
+                  ) : signConfidence > 0 ? (
+                    <div className="call-detection-badge call-detection-badge--low">
+                      Aucun signe ({signConfidence}%)
+                    </div>
+                  ) : (
+                    <div className="call-detection-badge call-detection-badge--idle">
+                      <Hand size={13} /> Montrez un signe...
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Remote video */}
+            <div className="call-video-tile call-video-tile--remote">
+              <video ref={remoteVideoRef} autoPlay playsInline />
+              <div className="call-video-tile__nametag" style={{ bottom: '0.75rem' }}>
+                {status === 'connected'
+                  ? <><CircleDot size={10} className="call-nametag-dot" /> Ami</>
+                  : <><Loader2 size={10} className="call-status-spin" /> En attente...</>
+                }
+              </div>
+              
+              {/* Remote voice subtitle */}
+              {messages.filter(m => m.isVoice).slice(-1).map(msg =>
+                msg.sender !== userData?.name && (
+                  <div key={msg.id} className="call-video-tile__remote-voice">
+                    <Mic size={13} style={{ flexShrink: 0 }} />
+                    {msg.text.replace('[voice] ', '')}
+                  </div>
+                )
+              )}
+              
+              {/* Remote sign overlay */}
+              {messages.filter(m => m.isSign).slice(-1).map(msg =>
+                msg.sender !== userData?.name && (
+                  <div key={msg.id} className="call-video-tile__remote-sign">
+                    <div className="call-video-tile__remote-sign-inner">
+                      <HandMetal size={14} style={{ marginRight: '0.3rem', verticalAlign: 'middle' }} />
+                      {msg.text.replace('[sign] ', '')}
+                    </div>
+                  </div>
+                )
+              )}
+              
+              {friendLeft && (
+                <div className="call-video-tile__left-overlay">
+                  <p><PhoneMissed size={20} style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />L'ami a quitté</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Controls */}
+        {status === 'connected' && (
+          <div className="call-controls">
+            <CtrlBtn
+              onClick={toggleMic}
+              active={!micOn}
+              danger={!micOn}
+              icon={micOn ? <Mic size={20} /> : <MicOff size={20} />}
+              label={micOn ? 'Muet' : 'Son'}
+            />
+            <CtrlBtn
+              onClick={toggleCamera}
+              active={!cameraOn}
+              danger={!cameraOn}
+              icon={cameraOn ? <Video size={20} /> : <VideoOff size={20} />}
+              label={cameraOn ? 'Cam off' : 'Cam on'}
+            />
+            <CtrlBtn
+              onClick={shareScreen}
+              active={sharing}
+              icon={sharing ? <MonitorOff size={20} /> : <Monitor size={20} />}
+              label={sharing ? 'Arrêter' : 'Partager'}
+            />
+            <div className="call-ctrl-wrapper">
+              <CtrlBtn
+                onClick={() => setChatOpen(p => !p)}
+                active={chatOpen}
+                icon={<MessageSquare size={20} />}
+                label="Chat"
+              />
+              {messages.length > 0 && !chatOpen && (
+                <span className="call-ctrl-badge">{messages.length}</span>
+              )}
+            </div>
+            <CtrlBtn
+              onClick={toggleFullscreen}
+              icon={isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
+              label={isFullscreen ? 'Quitter' : 'Plein écran'}
+            />
+            <CtrlBtn
+              onClick={startDetection}
+              active={detecting}
+              icon={<HandMetal size={20} />}
+              label={detecting ? 'Actif' : 'Détecter'}
+            />
+            
+            {/* Language selector with dropdown */}
+            <div className="call-ctrl-wrapper">
+              <button
+                onClick={() => setShowLangMenu(!showLangMenu)}
+                className="call-ctrl-btn call-ctrl-btn--default"
+              >
+                <span className="call-ctrl-btn__icon"><Globe size={20} /></span>
+                <span className="call-ctrl-btn__label">{selectedLang === 'en-US' ? 'EN' : 'AR'}</span>
+              </button>
+              {showLangMenu && (
+                <div className="call-lang-menu" onClick={(e) => e.stopPropagation()}>
+                  <button 
+                    onClick={() => { changeLanguage('en-US'); setShowLangMenu(false); }}
+                    className={selectedLang === 'en-US' ? 'call-lang-menu__active' : ''}
+                  >
+                    🇬🇧 English
+                  </button>
+                  <button 
+                    onClick={() => { changeLanguage('ar-EG'); setShowLangMenu(false); }}
+                    className={selectedLang === 'ar-EG' ? 'call-lang-menu__active' : ''}
+                  >
+                    🇸🇦 العربية
+                  </button>
+                </div>
+              )}
+            </div>
+            
+            <CtrlBtn
+              onClick={voiceActive ? stopVoice : startVoice}
+              active={voiceActive}
+              icon={voiceActive ? <Captions size={20} /> : <CaptionsOff size={20} />}
+              label={voiceActive ? 'Sous-titres ON' : 'Sous-titres OFF'}
+            />
+            <CtrlBtn
+              onClick={endCall}
+              danger
+              icon={<PhoneOff size={20} />}
+              label="Terminer"
+            />
+          </div>
+        )}
+
+        {/* Idle — Create / Join */}
+        {status === 'idle' && !friendLeft && (
+          <div className="call-idle-grid">
+
+            {/* Create */}
+            <div className="call-idle-card">
+              <div className="call-idle-card__icon call-idle-card__icon--blue">
+                <PhoneCall size={26} color="#60a5fa" strokeWidth={1.8} />
+              </div>
+              <h3 className="call-idle-card__title">Créer un appel</h3>
+              <p className="call-idle-card__desc">Générez un ID et partagez-le avec votre ami.</p>
+              <button onClick={createCall} className="call-idle-card__btn call-idle-card__btn--create">
+                Créer l'appel
+              </button>
+            </div>
+
+            {/* Join */}
+            <div className="call-idle-card">
+              <div className="call-idle-card__icon call-idle-card__icon--green">
+                <Link2 size={26} color="#4ade80" strokeWidth={1.8} />
+              </div>
+              <h3 className="call-idle-card__title">Rejoindre un appel</h3>
+              <p className="call-idle-card__desc call-idle-card__desc--join">
+                Collez l'ID partagé par votre ami.
+              </p>
+              <input
+                type="text"
+                placeholder="Coller l'ID ici..."
+                value={callId}
+                onChange={(e) => setCallId(e.target.value)}
+                className="call-idle-card__input"
+              />
+              <button onClick={joinCall} className="call-idle-card__btn call-idle-card__btn--join">
+                Rejoindre
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Waiting */}
+        {status === 'calling' && (
+          <div className="call-waiting">
+            <p className="call-waiting__label">
+              <Loader2 size={15} className="call-status-spin" style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />
+              En attente d'un ami...
+            </p>
+            <p className="call-waiting__id-label">Partagez cet ID :</p>
+            <div className="call-waiting__id-box">
+              <p className="call-waiting__id-text">{callId}</p>
+            </div>
+            <button
+              onClick={handleCopy}
+              className={`call-waiting__copy-btn ${copied ? 'call-waiting__copy-btn--copied' : 'call-waiting__copy-btn--default'}`}
+            >
+              {copied
+                ? <><Check size={15} strokeWidth={2.5} /> Copié !</>
+                : <><Copy size={15} /> Copier l'ID</>
+              }
+            </button>
+          </div>
+        )}
+
+      </div>
+
+      {/* ── Voice subtitle bar ── */}
+      {voiceSubtitle && (
+        <div className={`call-voice-subtitle ${voiceSubtitle.isFinal ? 'call-voice-subtitle--final' : 'call-voice-subtitle--interim'}`}>
+          <Mic size={14} className="call-voice-subtitle__mic-icon" />
+          <span className="call-voice-subtitle__text">{voiceSubtitle.text}</span>
+        </div>
+      )}
+
+      {/* Floating Chat */}
+      {status === 'connected' && chatOpen && (
+        <div className="call-chat">
+          <div className="call-chat__header">
+            <p className="call-chat__header-title">
+              <MessageSquare size={15} style={{ verticalAlign: 'middle', marginRight: '0.35rem' }} />
+              Chat
+            </p>
+            <button onClick={() => setChatOpen(false)} className="call-chat__close-btn">
+              <X size={16} />
+            </button>
+          </div>
+
+          <div className="call-chat__messages">
+            {messages.length === 0 && (
+              <p className="call-chat__empty">Aucun message...</p>
+            )}
+            {messages.map(msg => (
+              <div
+                key={msg.id}
+                className={`call-chat__msg ${msg.sender === userData?.name ? 'call-chat__msg--self' : 'call-chat__msg--other'}`}
+              >
+                <span className="call-chat__msg-sender">{msg.sender}</span>
+                <div className={`call-chat__msg-bubble ${getBubbleClass(msg)}`}>
+                  {msg.text}
+                </div>
+              </div>
+            ))}
+            <div ref={messagesEndRef} />
+          </div>
+
+          <div className="call-chat__footer">
+            <input
+              type="text"
+              placeholder="Écrire un message..."
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+              className="call-chat__input"
+            />
+            <button onClick={sendMessage} className="call-chat__send-btn">
+              <Send size={16} strokeWidth={2} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Paywall Modal */}
+      {showPaywall && (
+        <PaywallModal
+          type="call"
+          minutesUsed={minutesUsed}
+          minutesLimit={minutesLimit}
+          plan={plan}
+          onClose={() => setShowPaywall(false)}
+        />
+      )}
+    </main>
+  )
+}
+
+export default function CallPage() {
+  return <Suspense><CallComponent /></Suspense>
+}
+dashboard:
+'use client'
+import { useEffect, useState } from 'react'
+import { auth, db } from '../../firebase'
+import { onAuthStateChanged, signOut } from 'firebase/auth'
+import { doc, getDoc } from 'firebase/firestore'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import {
+  User,
+  LogOut,
+  Users,
+  Wifi,
+  Bell,
+  Video,
+  Dumbbell,
+  Mic,
+  HandMetal,
+  Loader2,
+  FlaskConical,
+  CheckCircle2,
+  Crown,
+  Zap,
+  Star,
+  Clock,
+  ChevronRight,
+  Infinity,
+} from 'lucide-react'
+import './dashboard.css'
+
+const PLAN_META = {
+  free: {
+    name: 'Gratuit',
+    color: '#94a3b8',
+    bg: 'rgba(148,163,184,0.12)',
+    border: 'rgba(148,163,184,0.2)',
+    hoverBg: 'rgba(148,163,184,0.07)',
+    hoverBorder: 'rgba(148,163,184,0.2)',
+    icon: <Clock size={22} />,
+    limitMin: 60,
+  },
+  plus: {
+    name: 'Plus',
+    color: '#60a5fa',
+    bg: 'rgba(96,165,250,0.12)',
+    border: 'rgba(96,165,250,0.22)',
+    hoverBg: 'rgba(96,165,250,0.08)',
+    hoverBorder: 'rgba(96,165,250,0.3)',
+    icon: <Zap size={22} />,
+    limitMin: 360,
+  },
+  pro: {
+    name: 'Pro',
+    color: '#a78bfa',
+    bg: 'rgba(167,139,250,0.12)',
+    border: 'rgba(167,139,250,0.22)',
+    hoverBg: 'rgba(167,139,250,0.08)',
+    hoverBorder: 'rgba(167,139,250,0.3)',
+    icon: <Star size={22} />,
+    limitMin: null,
+  },
+  vip: {
+    name: 'VIP',
+    color: '#fbbf24',
+    bg: 'rgba(251,191,36,0.12)',
+    border: 'rgba(251,191,36,0.22)',
+    hoverBg: 'rgba(251,191,36,0.07)',
+    hoverBorder: 'rgba(251,191,36,0.3)',
+    icon: <Crown size={22} />,
+    limitMin: null,
+  },
+}
+
+export default function Dashboard() {
+  const [user, setUser]                   = useState(null)
+  const [userData, setUserData]           = useState(null)
+  const [friendsCount, setFriendsCount]   = useState(0)
+  const [notifications, setNotifications] = useState(0)
+  const [onlineCount, setOnlineCount]     = useState(0)
+  const [usageToday, setUsageToday]       = useState(0)
+  const router = useRouter()
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (!currentUser) {
+        router.push('/login')
+      } else {
+        setUser(currentUser)
+        const docRef  = doc(db, 'users', currentUser.uid)
+        const docSnap = await getDoc(docRef)
+        if (docSnap.exists()) {
+          const data = docSnap.data()
+          setUserData(data)
+          setFriendsCount(data.friends?.length || 0)
+
+          // Load today's usage
+          const today = new Date().toISOString().slice(0, 10)
+          const todayMin = data.usage?.usageByDay?.[today] || 0
+          setUsageToday(todayMin)
+
+          const { getDocs, collection, query, where } = await import('firebase/firestore')
+          const q = query(
+            collection(db, 'friendRequests'),
+            where('to', '==', currentUser.uid),
+            where('status', '==', 'pending')
+          )
+          const snap = await getDocs(q)
+          setNotifications(snap.size)
+        }
+      }
+    })
+    return () => unsubscribe()
+  }, [])
+
+  const handleLogout = async () => {
+    await signOut(auth)
+    router.push('/')
+  }
+
+  const getInitials = (name) => {
+    if (!name) return '?'
+    return name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
+  }
+
+  if (!user || !userData) return (
+    <main className="dash-loading-screen">
+      <div className="dash-loading-screen__inner">
+        <Loader2 className="dash-spinner-icon" />
+        <p className="dash-loading-screen__text">Chargement...</p>
+      </div>
+    </main>
+  )
+
+  const planId   = userData?.subscription?.plan || 'free'
+  const planMeta = PLAN_META[planId] || PLAN_META.free
+
+  return (
+    <main className="dash-page">
+
+      {/* Background glow */}
+      <div aria-hidden className="dash-bg-glow" />
+
+      <div className="dash-container">
+
+        {/* Welcome Hero */}
+        <div className="dash-hero">
+          <div className="dash-hero__left">
+            <div className="dash-hero__avatar">
+              {user.photoURL
+                ? <img src={user.photoURL} alt="avatar" />
+                : getInitials(userData.name)
+              }
+            </div>
+            <div>
+              <p className="dash-hero__greeting">Bon retour</p>
+              <h2 className="dash-hero__name">{userData.name}</h2>
+              <span className="dash-hero__role-pill">
+                {userData.role === 'parlant'
+                  ? <><Mic size={13} strokeWidth={2.5} /> Parlant</>
+                  : <><HandMetal size={13} strokeWidth={2.5} /> Non-Parlant</>
+                }
+              </span>
+            </div>
+          </div>
+
+          <div className="dash-hero__actions">
+            <Link href="/profile" style={{ textDecoration: 'none' }}>
+              <button className="dash-hero__btn dash-hero__btn--profile">
+                <User size={15} strokeWidth={2.2} /> Mon profil
+              </button>
+            </Link>
+            <button onClick={handleLogout} className="dash-hero__btn dash-hero__btn--logout">
+              <LogOut size={15} strokeWidth={2.2} /> Déconnexion
+            </button>
+          </div>
+        </div>
+
+        {/* Stats Row */}
+        <div className="dash-stats">
+          <StatCard
+            value={friendsCount}
+            label="Amis"
+            color="#60a5fa"
+            glowColor="rgba(59,130,246,0.08)"
+            icon={<Users size={16} color="#60a5fa" strokeWidth={2.2} />}
+          />
+          <StatCard
+            value={onlineCount}
+            label="En ligne"
+            color="#4ade80"
+            glowColor="rgba(34,197,94,0.08)"
+            dot="#22c55e"
+            icon={<Wifi size={16} color="#4ade80" strokeWidth={2.2} />}
+          />
+          <StatCard
+            value={notifications}
+            label="Demandes"
+            color={notifications > 0 ? '#f87171' : 'rgba(255,255,255,0.3)'}
+            glowColor="rgba(239,68,68,0.08)"
+            highlight={notifications > 0}
+            icon={<Bell size={16} color={notifications > 0 ? '#f87171' : 'rgba(255,255,255,0.3)'} strokeWidth={2.2} />}
+          />
+        </div>
+
+        {/* Action Cards */}
+        <div className="dash-actions">
+
+          <ActionCard
+            href="/friends"
+            icon={<Users size={24} strokeWidth={2} />}
+            iconBg="rgba(59,130,246,0.15)"
+            iconBorder="rgba(59,130,246,0.25)"
+            iconColor="#60a5fa"
+            title="Mes amis"
+            description="Gérez vos amis et répondez aux demandes en attente."
+            badge={notifications > 0 ? notifications : null}
+            hoverBg="rgba(59,130,246,0.08)"
+            hoverBorder="rgba(59,130,246,0.25)"
+          />
+
+          <ActionCard
+            href="/call"
+            icon={<Video size={24} strokeWidth={2} />}
+            iconBg="rgba(34,197,94,0.12)"
+            iconBorder="rgba(34,197,94,0.2)"
+            iconColor="#4ade80"
+            title="Appel vidéo"
+            description="Créez ou rejoignez un appel avec détection de langue des signes."
+            hoverBg="rgba(34,197,94,0.07)"
+            hoverBorder="rgba(34,197,94,0.2)"
+            activePill={<><CheckCircle2 size={11} strokeWidth={2.5} /> Actif</>}
+            pillColor="#4ade80"
+            pillBg="rgba(34,197,94,0.12)"
+            pillBorder="rgba(34,197,94,0.25)"
+          />
+
+          <ActionCard
+            href="/entrainement"
+            icon={<Dumbbell size={24} strokeWidth={2} />}
+            iconBg="rgba(124,58,237,0.15)"
+            iconBorder="rgba(124,58,237,0.25)"
+            iconColor="#c4b5fd"
+            title="Mode Entraînement"
+            description="Testez la détection de signes, les sous-titres et l'expansion de phrases sans appel."
+            hoverBg="rgba(124,58,237,0.08)"
+            hoverBorder="rgba(124,58,237,0.25)"
+            activePill={<><FlaskConical size={11} strokeWidth={2.5} /> Test</>}
+            pillColor="#c4b5fd"
+            pillBg="rgba(124,58,237,0.12)"
+            pillBorder="rgba(124,58,237,0.25)"
+          />
+
+          {/* Subscription card */}
+          <SubscriptionCard
+            planId={planId}
+            planMeta={planMeta}
+            usageToday={usageToday}
+          />
+
+        </div>
+      </div>
+    </main>
+  )
+}
+
+/* ── Subscription card ───────────────────────────────────────── */
+function SubscriptionCard({ planId, planMeta, usageToday }) {
+  const isUnlimited = planMeta.limitMin === null
+  const pct = isUnlimited ? 100 : Math.min(100, Math.round((usageToday / planMeta.limitMin) * 100))
+  const used = Math.round(usageToday)
+  const limit = planMeta.limitMin
+
+  // Bar colour shifts red when above 80%
+  const barColor = pct >= 80 ? '#f87171' : planMeta.color
+
+  return (
+    <Link
+      href="/pricing"
+      className="dash-action-card dash-sub-card"
+      style={{ '--sub-color': planMeta.color, '--sub-border': planMeta.border }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background  = planMeta.hoverBg
+        e.currentTarget.style.borderColor = planMeta.hoverBorder
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background  = 'rgba(255,255,255,0.03)'
+        e.currentTarget.style.borderColor = planMeta.border
+      }}
+    >
+      {/* Plan pill top-right */}
+      <div
+        className="dash-action-card__pill"
+        style={{
+          background: planMeta.bg,
+          border: `1px solid ${planMeta.border}`,
+          color: planMeta.color,
+        }}
+      >
+        {planMeta.icon && <span style={{ display: 'flex' }}>{planMeta.icon}</span>}
+        {planMeta.name}
+      </div>
+
+      {/* Icon */}
+      <div
+        className="dash-action-card__icon"
+        style={{ background: planMeta.bg, border: `1px solid ${planMeta.border}`, color: planMeta.color }}
+      >
+        <Crown size={24} strokeWidth={2} />
+      </div>
+
+      <h3 className="dash-action-card__title">Mon Abonnement</h3>
+
+      {/* Usage bar */}
+      <div className="dash-sub-card__usage">
+        <div className="dash-sub-card__usage-row">
+          <span className="dash-sub-card__usage-label">
+            {isUnlimited ? 'Utilisation aujourd\'hui' : `${used} / ${limit} min`}
+          </span>
+          <span className="dash-sub-card__usage-pct" style={{ color: barColor }}>
+            {isUnlimited ? <Infinity size={14} /> : `${pct}%`}
+          </span>
+        </div>
+        <div className="dash-sub-card__bar-track">
+          <div
+            className="dash-sub-card__bar-fill"
+            style={{
+              width: `${pct}%`,
+              background: barColor,
+              boxShadow: `0 0 8px ${barColor}88`,
+            }}
+          />
+        </div>
+      </div>
+
+      {/* CTA */}
+      {planId === 'free' || planId === 'plus' ? (
+        <p className="dash-sub-card__cta" style={{ color: planMeta.color }}>
+          Mettre à niveau <ChevronRight size={13} strokeWidth={2.5} />
+        </p>
+      ) : (
+        <p className="dash-sub-card__cta" style={{ color: planMeta.color }}>
+          Voir les plans <ChevronRight size={13} strokeWidth={2.5} />
+        </p>
+      )}
+    </Link>
+  )
+}
+
+/* ── Reusable stat card ──────────────────────────────────────── */
+function StatCard({ value, label, color, glowColor, dot, highlight, icon }) {
+  return (
+    <div className={`dash-stat-card ${highlight ? 'dash-stat-card--highlight' : 'dash-stat-card--default'}`}>
+      <div className="dash-stat-card__glow" style={{ background: glowColor }} aria-hidden />
+
+      {icon && <div className="dash-stat-card__icon-top">{icon}</div>}
+
+      {dot ? (
+        <div className="dash-stat-card__value-row">
+          <span
+            className="dash-stat-card__dot"
+            style={{ background: dot, boxShadow: `0 0 8px ${dot}99` }}
+          />
+          <p className="dash-stat-card__value dash-stat-card__value--inline" style={{ color }}>
+            {value}
+          </p>
+        </div>
+      ) : (
+        <p className="dash-stat-card__value" style={{ color }}>{value}</p>
+      )}
+
+      <p className="dash-stat-card__label">{label}</p>
+    </div>
+  )
+}
+
+/* ── Reusable action card ──────────────────────────────────────── */
+function ActionCard({
+  href, icon, iconBg, iconBorder, iconColor,
+  title, description, badge,
+  hoverBg, hoverBorder,
+  activePill, pillColor, pillBg, pillBorder,
+}) {
+  return (
+    <Link href={href} className="dash-action-card"
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background   = hoverBg
+        e.currentTarget.style.borderColor  = hoverBorder
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background   = 'rgba(255,255,255,0.03)'
+        e.currentTarget.style.borderColor  = 'rgba(255,255,255,0.07)'
+      }}
+    >
+      {badge && (
+        <div className="dash-action-card__badge">{badge}</div>
+      )}
+
+      {activePill && !badge && (
+        <div
+          className="dash-action-card__pill"
+          style={{ background: pillBg, border: `1px solid ${pillBorder}`, color: pillColor }}
+        >
+          {activePill}
+        </div>
+      )}
+
+      <div
+        className="dash-action-card__icon"
+        style={{ background: iconBg, border: `1px solid ${iconBorder}`, color: iconColor }}
+      >
+        {icon}
+      </div>
+
+      <h3 className="dash-action-card__title">{title}</h3>
+      <p className="dash-action-card__desc">{description}</p>
+    </Link>
+  )
+}
+entrainement:
+'use client'
+
+import { useEffect, useRef, useState, useCallback } from 'react'
+import { auth } from '../../firebase'
+import { onAuthStateChanged } from 'firebase/auth'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { useSessionTracker } from '../../components/useSessionTracker'
+import { usePlanLimits } from '../../components/usePlanLimits'
+import PaywallModal from '../../components/PaywallModal'
+
+import {
+  ArrowLeft,
+  Dumbbell,
+  Camera,
+  Video,
+  VideoOff,
+  Mic,
+  MicOff,
+  Hand,
+  HandMetal,
+  Square,
+  ClipboardList,
+  Trash2,
+  Loader2,
+} from 'lucide-react'
+import { useGestureDetector } from '../../components/useGestureDetector'
+import {
+  buildPhraseEngine,
+  subtitleStyle,
+  SUBTITLE_DURATION,
+} from '../../components/PhraseEngine'
+import './entrainement.css'
+
+export default function EntrainementPage() {
+  const [user, setUser] = useState(null)
+  const [ready, setReady] = useState(false)
+
+  const [cameraOn, setCameraOn] = useState(false)
+  const [micOn, setMicOn] = useState(true)
+  const [streamStarted, setStreamStarted] = useState(false)
+
+  const [detecting, setDetecting] = useState(false)
+  const { endSession } = useSessionTracker({ uid: user?.uid, type: 'entrainement', active: detecting })
+
+  const [showPaywall, setShowPaywall] = useState(false)
+  const { plan, minutesUsed, minutesLimit, canUse } = usePlanLimits({ uid: user?.uid, type: 'entrainement' })
+
+  const [signWord, setSignWord] = useState(null)
+  const [signConfidence, setSignConf] = useState(0)
+
+  const [gestureSubtitle, setGestureSubtitle] = useState(null)
+  const [pendingSigns, setPendingSigns] = useState([])
+  const [detectionLog, setDetectionLog] = useState([])
+
+  const videoRef = useRef(null)
+  const localStreamRef = useRef(null)
+  const subtitleTimeout = useRef(null)
+  const phraseEngineRef = useRef(buildPhraseEngine())
+  const router = useRouter()
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (u) => {
+      if (!u) router.push('/login')
+      else {
+        setUser(u)
+        setReady(true)
+      }
+    })
+
+    return () => unsub()
+  }, [router])
+
+  const handleDetected = useCallback((data) => {
+    if (data.detected) {
+      setSignWord(data.word)
+      setSignConf(data.confidence)
+
+      if (data.confidence > 60) {
+        const result = phraseEngineRef.current.addSign(data.word)
+
+        setGestureSubtitle({ text: result.phrase, type: result.type })
+        setPendingSigns(result.type !== 'raw' ? [] : phraseEngineRef.current.getPending())
+
+        setDetectionLog((prev) => [
+          {
+            word: data.word,
+            phrase: result.phrase,
+            type: result.type,
+            confidence: data.confidence,
+            time: new Date().toLocaleTimeString(),
+          },
+          ...prev,
+        ].slice(0, 20))
+
+        if (subtitleTimeout.current) clearTimeout(subtitleTimeout.current)
+
+        subtitleTimeout.current = setTimeout(() => {
+          setGestureSubtitle(null)
+          setPendingSigns([])
+          phraseEngineRef.current.clear()
+        }, SUBTITLE_DURATION)
+      }
+    } else {
+      setSignWord(null)
+      setSignConf(data.confidence || 0)
+    }
+  }, [])
+
+  const handleNoHand = useCallback(() => {
+    setSignWord(null)
+    setSignConf(0)
+  }, [])
+
+  const { canvasRef, start, stop } = useGestureDetector({
+    onDetected: handleDetected,
+    onNoHand: handleNoHand,
+  })
+
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true,
+      })
+
+      localStreamRef.current = stream
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+      }
+
+      setCameraOn(true)
+      setStreamStarted(true)
+    } catch (e) {
+      console.log('Camera error:', e)
+    }
+  }
+
+  const toggleCamera = () => {
+    localStreamRef.current?.getVideoTracks().forEach((t) => {
+      t.enabled = !t.enabled
+    })
+
+    setCameraOn((prev) => !prev)
+  }
+
+  const toggleMic = () => {
+    localStreamRef.current?.getAudioTracks().forEach((t) => {
+      t.enabled = !t.enabled
+    })
+
+    setMicOn((prev) => !prev)
+  }
+
+  const toggleDetection = async () => {
+    if (!canUse) { setShowPaywall(true); return }
+
+    if (!streamStarted) {
+      await startCamera()
+    }
+
+    if (detecting) {
+      stop()
+      setDetecting(false)
+      setSignWord(null)
+      setSignConf(0)
+      setGestureSubtitle(null)
+      setPendingSigns([])
+      phraseEngineRef.current.clear()
+    } else {
+      await start(videoRef)
+      setDetecting(true)
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      stop()
+      localStreamRef.current?.getTracks().forEach((t) => t.stop())
+
+      if (subtitleTimeout.current) {
+        clearTimeout(subtitleTimeout.current)
+      }
+    }
+  }, [])
+
+  const typeLabel = (type) => {
+    if (type === 'combo') return { label: 'COMBO', color: '#a78bfa' }
+    if (type === 'single') return { label: 'PHRASE', color: '#4ade80' }
+
+    return { label: 'SIGNE', color: '#60a5fa' }
+  }
+
+  const handleStopAll = async () => {
+    stop()
+
+    localStreamRef.current?.getTracks().forEach((t) => t.stop())
+    await endSession()
+
+    setStreamStarted(false)
+    setCameraOn(false)
+    setDetecting(false)
+    setSignWord(null)
+    setGestureSubtitle(null)
+    setPendingSigns([])
+    phraseEngineRef.current.clear()
+  }
+
+  if (!ready) {
+    return (
+      <main className="entr-loading">
+        <Loader2 className="entr-loading-icon" size={42} />
+      </main>
+    )
+  }
+
+  return (
+    <main className="entr-page">
+      <canvas ref={canvasRef} style={{ display: 'none' }} />
+
+      <div aria-hidden className="entr-bg-glow" />
+
+      <div className="entr-container">
+        <div className="entr-header">
+          <div>
+            <h1 className="entr-header__title">
+              <Dumbbell size={26} />
+              Mode Entraînement
+            </h1>
+
+            <p className="entr-header__subtitle">
+              Testez la détection de signes sans appel
+            </p>
+          </div>
+
+          <Link href="/dashboard" className="entr-header__back-btn">
+            <ArrowLeft size={16} />
+            Dashboard
+          </Link>
+        </div>
+
+        <div className="entr-grid">
+          <div className="entr-video-col">
+            <div className="entr-camera-tile">
+              <video
+                ref={videoRef}
+                autoPlay
+                muted
+                playsInline
+                style={{ display: streamStarted ? 'block' : 'none' }}
+              />
+
+              {!streamStarted && (
+                <div className="entr-camera-placeholder">
+                  <Camera size={48} className="entr-camera-placeholder__icon" />
+                  <p className="entr-camera-placeholder__text">
+                    Cliquez sur Démarrer pour activer la caméra
+                  </p>
+                </div>
+              )}
+
+              {detecting && (
+                <div className="entr-detection-area">
+                  {signWord ? (
+                    <div className="entr-detection-badge entr-detection-badge--detected">
+                      <HandMetal size={15} />
+                      {signWord.toUpperCase()} — {signConfidence}%
+                    </div>
+                  ) : signConfidence > 0 ? (
+                    <div className="entr-detection-badge entr-detection-badge--low">
+                      Aucun signe ({signConfidence}%)
+                    </div>
+                  ) : (
+                    <div className="entr-detection-badge entr-detection-badge--idle">
+                      <Hand size={14} />
+                      Montrez un signe...
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {detecting && pendingSigns.length > 0 && !gestureSubtitle && (
+                <div
+                  className="entr-pending"
+                  style={{ bottom: gestureSubtitle ? '56px' : '0.75rem' }}
+                >
+                  {pendingSigns.map((s, i) => (
+                    <span key={i} className="entr-pending__sign">
+                      {s}
+                    </span>
+                  ))}
+                  <span className="entr-pending__dots">...</span>
+                </div>
+              )}
+
+              {gestureSubtitle && (
+                <div
+                  className="entr-subtitle"
+                  style={{
+                    background: subtitleStyle(gestureSubtitle.type).bg,
+                    borderTop: `1px solid ${subtitleStyle(gestureSubtitle.type).border}`,
+                  }}
+                >
+                  <HandMetal size={16} className="entr-subtitle__icon" />
+                  <span className="entr-subtitle__text">{gestureSubtitle.text}</span>
+                  <span className="entr-subtitle__tag">
+                    {gestureSubtitle.type === 'combo' && 'COMBO'}
+                    {gestureSubtitle.type === 'single' && 'PHRASE'}
+                    {gestureSubtitle.type === 'raw' && 'SIGNE'}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="entr-controls">
+              {!streamStarted && (
+                <button onClick={startCamera} className="entr-start-btn">
+                  <Video size={17} />
+                  Démarrer la caméra
+                </button>
+              )}
+
+              {streamStarted && (
+                <>
+                  <CtrlBtn
+                    onClick={toggleCamera}
+                    active={!cameraOn}
+                    danger={!cameraOn}
+                    icon={cameraOn ? <Video size={20} /> : <VideoOff size={20} />}
+                    label={cameraOn ? 'Cam' : 'Cam off'}
+                  />
+
+                  <CtrlBtn
+                    onClick={toggleMic}
+                    active={!micOn}
+                    danger={!micOn}
+                    icon={micOn ? <Mic size={20} /> : <MicOff size={20} />}
+                    label={micOn ? 'Micro' : 'Muet'}
+                  />
+
+                  <CtrlBtn
+                    onClick={toggleDetection}
+                    active={detecting}
+                    icon={<HandMetal size={20} />}
+                    label={detecting ? 'Détection ON' : 'Détecter'}
+                  />
+
+                  <CtrlBtn
+                    onClick={handleStopAll}
+                    danger
+                    icon={<Square size={20} />}
+                    label="Arrêter"
+                  />
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="entr-log">
+            <div className="entr-log__header">
+              <p className="entr-log__header-title">
+                <ClipboardList size={16} />
+                Détections
+              </p>
+
+              {detectionLog.length > 0 && (
+                <button onClick={() => setDetectionLog([])} className="entr-log__clear-btn">
+                  <Trash2 size={14} />
+                  Effacer
+                </button>
+              )}
+            </div>
+
+            <div className="entr-log__list">
+              {detectionLog.length === 0 && (
+                <div className="entr-log__empty">
+                  <div className="entr-log__empty-icon">
+                    <HandMetal size={40} />
+                  </div>
+
+                  <p className="entr-log__empty-text">
+                    Les signes détectés apparaîtront ici
+                  </p>
+                </div>
+              )}
+
+              {detectionLog.map((entry, i) => {
+                const t = typeLabel(entry.type)
+
+                return (
+                  <div key={i} className="entr-log__entry">
+                    <div className="entr-log__entry-top">
+                      <span
+                        className="entr-log__entry-badge"
+                        style={{
+                          color: t.color,
+                          background: `${t.color}20`,
+                        }}
+                      >
+                        {t.label}
+                      </span>
+
+                      <span className="entr-log__entry-time">{entry.time}</span>
+                    </div>
+
+                    <p className="entr-log__entry-word">
+                      <HandMetal size={13} />
+                      {entry.word.toUpperCase()} — {entry.confidence.toFixed(1)}%
+                    </p>
+
+                    <p className="entr-log__entry-phrase">"{entry.phrase}"</p>
+                  </div>
+                )
+              })}
+            </div>
+
+            <div className="entr-log__statusbar">
+              <span className="entr-log__status-item">
+                <span
+                  className={`entr-log__status-dot ${
+                    streamStarted
+                      ? 'entr-log__status-dot--camera-on'
+                      : 'entr-log__status-dot--camera-off'
+                  }`}
+                />
+                Caméra
+              </span>
+
+              <span className="entr-log__status-item">
+                <span
+                  className={`entr-log__status-dot ${
+                    detecting
+                      ? 'entr-log__status-dot--detect-on'
+                      : 'entr-log__status-dot--detect-off'
+                  }`}
+                />
+                Détection
+              </span>
+
+              <span className="entr-log__count">
+                {detectionLog.length} signe{detectionLog.length !== 1 ? 's' : ''}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {showPaywall && (
+        <PaywallModal
+          type="entrainement"
+          minutesUsed={minutesUsed}
+          minutesLimit={minutesLimit}
+          plan={plan}
+          onClose={() => setShowPaywall(false)}
+        />
+      )}
+    </main>
+  )
+}
+
+function CtrlBtn({ onClick, active, danger, icon, label }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`entr-ctrl-btn ${
+        danger
+          ? 'entr-ctrl-btn--danger'
+          : active
+            ? 'entr-ctrl-btn--active'
+            : 'entr-ctrl-btn--default'
+      }`}
+    >
+      <span className="entr-ctrl-btn__icon">{icon}</span>
+      <span className="entr-ctrl-btn__label">{label}</span>
+    </button>
+  )
+}
+friends:
+'use client'
+
+import { useEffect, useState } from 'react'
+import { auth, db } from '../../firebase'
+import { onAuthStateChanged } from 'firebase/auth'
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  doc,
+  setDoc,
+  getDoc,
+  updateDoc,
+  arrayUnion,
+} from 'firebase/firestore'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import {
+  ArrowLeft,
+  Search,
+  Mail,
+  Users,
+  Handshake,
+  UserPlus,
+  Check,
+  X,
+  Video,
+  Mic,
+  HandMetal,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
+} from 'lucide-react'
+import './friends.css'
+
+export default function Friends() {
+  const [user, setUser] = useState(null)
+  const [userData, setUserData] = useState(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState([])
+  const [friends, setFriends] = useState([])
+  const [requests, setRequests] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [toast, setToast] = useState(null)
+
+  const router = useRouter()
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (!currentUser) {
+        router.push('/login')
+        return
+      }
+
+      setUser(currentUser)
+
+      const docRef = doc(db, 'users', currentUser.uid)
+      const docSnap = await getDoc(docRef)
+
+      if (docSnap.exists()) {
+        setUserData(docSnap.data())
+        await loadFriends(currentUser.uid, docSnap.data())
+      }
+    })
+
+    return () => unsubscribe()
+  }, [router])
+
+  const showToast = (msg, type = 'success') => {
+    setToast({ msg, type })
+    setTimeout(() => setToast(null), 3000)
+  }
+
+  const loadFriends = async (uid, data) => {
+    const requestsRef = collection(db, 'friendRequests')
+    const q = query(
+      requestsRef,
+      where('to', '==', uid),
+      where('status', '==', 'pending')
+    )
+
+    const snapshot = await getDocs(q)
+    const reqs = []
+
+    for (const docSnap of snapshot.docs) {
+      const reqData = docSnap.data()
+      const senderDoc = await getDoc(doc(db, 'users', reqData.from))
+
+      reqs.push({
+        id: docSnap.id,
+        ...reqData,
+        senderName: senderDoc.data()?.name,
+      })
+    }
+
+    setRequests(reqs)
+
+    const friendIds = data.friends || []
+    const friendsList = []
+
+    for (const fid of friendIds) {
+      const fDoc = await getDoc(doc(db, 'users', fid))
+
+      if (fDoc.exists()) {
+        friendsList.push({
+          id: fid,
+          ...fDoc.data(),
+        })
+      }
+    }
+
+    setFriends(friendsList)
+  }
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) return
+
+    setLoading(true)
+
+    const q = query(
+      collection(db, 'users'),
+      where('name', '>=', searchQuery),
+      where('name', '<=', searchQuery + '\uf8ff')
+    )
+
+    const snapshot = await getDocs(q)
+
+    const results = snapshot.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .filter((d) => d.id !== user.uid)
+
+    setSearchResults(results)
+    setLoading(false)
+  }
+
+  const sendRequest = async (toUser) => {
+    const requestId = `${user.uid}_${toUser.id}`
+
+    await setDoc(doc(db, 'friendRequests', requestId), {
+      from: user.uid,
+      to: toUser.id,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+    })
+
+    showToast(`Demande envoyée à ${toUser.name} !`)
+  }
+
+  const acceptRequest = async (request) => {
+    await updateDoc(doc(db, 'friendRequests', request.id), {
+      status: 'accepted',
+    })
+
+    await updateDoc(doc(db, 'users', user.uid), {
+      friends: arrayUnion(request.from),
+    })
+
+    await updateDoc(doc(db, 'users', request.from), {
+      friends: arrayUnion(user.uid),
+    })
+
+    const docSnap = await getDoc(doc(db, 'users', user.uid))
+    await loadFriends(user.uid, docSnap.data())
+
+    showToast(`${request.senderName} ajouté comme ami !`)
+  }
+
+  const declineRequest = async (request) => {
+    await updateDoc(doc(db, 'friendRequests', request.id), {
+      status: 'declined',
+    })
+
+    setRequests(requests.filter((r) => r.id !== request.id))
+    showToast('Demande refusée.', 'error')
+  }
+
+  const getInitials = (name) => {
+    if (!name) return '?'
+
+    return name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2)
+  }
+
+  const RoleLabel = ({ role }) => (
+    <span className="friends-role-label">
+      {role === 'parlant' ? (
+        <>
+          <Mic size={13} />
+          Parlant
+        </>
+      ) : (
+        <>
+          <HandMetal size={13} />
+          Non-Parlant
+        </>
+      )}
+    </span>
+  )
+
+  if (!user) {
+    return (
+      <main className="friends-loading-screen">
+        <div className="friends-loading-screen__inner">
+          <Loader2 className="friends-loading-icon" size={42} />
+          <p className="friends-loading-screen__text">Chargement...</p>
+        </div>
+      </main>
+    )
+  }
+
+  return (
+    <main className="friends-page">
+      <div aria-hidden className="friends-bg-glow" />
+
+      {toast && (
+        <div className={`friends-toast friends-toast--${toast.type}`}>
+          {toast.type === 'success' ? (
+            <CheckCircle2 size={16} />
+          ) : (
+            <AlertCircle size={16} />
+          )}
+          {toast.msg}
+        </div>
+      )}
+
+      <div className="friends-container">
+        <div className="friends-header">
+          <div>
+            <h1 className="friends-header__title">Mes amis</h1>
+            <p className="friends-header__subtitle">
+              {friends.length} ami{friends.length !== 1 ? 's' : ''}
+              {requests.length > 0 &&
+                ` · ${requests.length} demande${requests.length > 1 ? 's' : ''} en attente`}
+            </p>
+          </div>
+
+          <Link href="/dashboard" className="friends-back-btn">
+            <ArrowLeft size={16} />
+            Dashboard
+          </Link>
+        </div>
+
+        <div className="friends-card">
+          <h2 className="friends-card__title">
+            <Search size={18} />
+            Rechercher des amis
+          </h2>
+
+          <div className="friends-search-row">
+            <input
+              type="text"
+              placeholder="Rechercher par nom..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+              className="friends-search-input"
+            />
+
+            <button onClick={handleSearch} className="friends-search-btn">
+              <Search size={16} />
+              Chercher
+            </button>
+          </div>
+
+          {loading && (
+            <p className="friends-search-loading">
+              <Loader2 size={15} className="friends-spin-icon" />
+              Recherche en cours...
+            </p>
+          )}
+
+          {searchResults.map((result) => (
+            <div key={result.id} className="friends-user-row">
+              <div className="friends-user-row__left">
+                <div className="friends-avatar friends-avatar--blue friends-avatar--sm">
+                  {getInitials(result.name)}
+                </div>
+
+                <div className="friends-user-row__info">
+                  <p className="friends-user-row__name">{result.name}</p>
+                  <p className="friends-user-row__role">
+                    <RoleLabel role={result.role} />
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => sendRequest(result)}
+                className="friends-btn friends-btn--add"
+              >
+                <UserPlus size={15} />
+                Ajouter
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {requests.length > 0 && (
+          <div className="friends-card friends-card--requests">
+            <h2 className="friends-card__title">
+              <Mail size={18} />
+              Demandes d'amis
+              <span className="friends-badge">{requests.length}</span>
+            </h2>
+
+            {requests.map((request) => (
+              <div key={request.id} className="friends-user-row friends-user-row--list">
+                <div className="friends-user-row__left">
+                  <div className="friends-avatar friends-avatar--purple friends-avatar--sm">
+                    {getInitials(request.senderName)}
+                  </div>
+
+                  <div className="friends-user-row__info">
+                    <p className="friends-user-row__name">{request.senderName}</p>
+                  </div>
+                </div>
+
+                <div className="friends-user-row__actions">
+                  <button
+                    onClick={() => acceptRequest(request)}
+                    className="friends-btn friends-btn--accept"
+                  >
+                    <Check size={15} />
+                    Accepter
+                  </button>
+
+                  <button
+                    onClick={() => declineRequest(request)}
+                    className="friends-btn friends-btn--decline"
+                  >
+                    <X size={15} />
+                    Refuser
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="friends-card">
+          <h2 className="friends-card__title">
+            <Users size={18} />
+            Mes amis ({friends.length})
+          </h2>
+
+          {friends.length === 0 ? (
+            <div className="friends-empty">
+              <div className="friends-empty__icon">
+                <Handshake size={42} />
+              </div>
+
+              <p className="friends-empty__text">
+                Pas encore d'amis — cherchez et ajoutez-en !
+              </p>
+            </div>
+          ) : (
+            friends.map((friend) => (
+              <div key={friend.id} className="friends-user-row friends-user-row--list">
+                <div className="friends-user-row__left">
+                  <div className="friends-avatar friends-avatar--blue">
+                    {getInitials(friend.name)}
+                    <span className="friends-avatar__online-dot" />
+                  </div>
+
+                  <div className="friends-user-row__info">
+                    <p className="friends-user-row__name">{friend.name}</p>
+                    <p className="friends-user-row__role">
+                      <RoleLabel role={friend.role} />
+                    </p>
+                  </div>
+                </div>
+
+                <Link href="/call" className="friends-btn friends-btn--call">
+                  <Video size={15} />
+                  Appeler
+                </Link>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </main>
+  )
+}
+payment:
+'use client'
+
+import { useState, useEffect, useRef, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
+import { auth, db } from '../../firebase'
+import { onAuthStateChanged } from 'firebase/auth'
+import { doc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore'
+import {
+  ArrowLeft,
+  Lock,
+  CreditCard,
+  CheckCircle2,
+  Loader2,
+  ShieldCheck,
+  Zap,
+  Star,
+  Crown,
+  Clock,
+} from 'lucide-react'
+import './payment.css'
+
+const PLAN_META = {
+  plus: {
+    name: 'Plus',
+    price: '590',
+    color: '#60a5fa',
+    glow: 'rgba(96,165,250,0.2)',
+    icon: <Zap size={18} />,
+    limit: '6h / jour',
+  },
+  pro: {
+    name: 'Pro',
+    price: '1 490',
+    color: '#a78bfa',
+    glow: 'rgba(167,139,250,0.2)',
+    icon: <Star size={18} />,
+    limit: 'Illimité',
+  },
+  vip: {
+    name: 'VIP',
+    price: '3 900',
+    color: '#fbbf24',
+    glow: 'rgba(251,191,36,0.2)',
+    icon: <Crown size={18} />,
+    limit: 'Illimité',
+  },
+}
+
+function formatCardNumber(val) {
+  return val.replace(/\D/g, '').slice(0, 16).replace(/(.{4})/g, '$1 ').trim()
+}
+
+function formatExpiry(val) {
+  const digits = val.replace(/\D/g, '').slice(0, 4)
+  if (digits.length >= 3) return digits.slice(0, 2) + '/' + digits.slice(2)
+  return digits
+}
+
+function PaymentComponent() {
+  const searchParams = useSearchParams()
+  const planId = searchParams.get('plan') || 'plus'
+  const plan = PLAN_META[planId] || PLAN_META.plus
+
+  const router = useRouter()
+  const [user, setUser] = useState(null)
+
+  const [cardNumber, setCardNumber] = useState('')
+  const [cardName, setCardName] = useState('')
+  const [expiry, setExpiry] = useState('')
+  const [cvv, setCvv] = useState('')
+  const [errors, setErrors] = useState({})
+
+  const [step, setStep] = useState('form') // 'form' | 'processing' | 'success'
+  const cardRef = useRef(null)
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (u) => {
+      if (!u) router.push('/login')
+      else setUser(u)
+    })
+    return () => unsub()
+  }, [])
+
+  const validate = () => {
+    const e = {}
+    if (cardNumber.replace(/\s/g, '').length < 16) e.cardNumber = 'Numéro invalide'
+    if (!cardName.trim()) e.cardName = 'Nom requis'
+    const [m, y] = expiry.split('/')
+    if (!m || !y || +m < 1 || +m > 12 || y.length < 2) e.expiry = 'Date invalide'
+    if (cvv.length < 3) e.cvv = 'CVV invalide'
+    return e
+  }
+
+  const handleSubmit = async () => {
+    const e = validate()
+    if (Object.keys(e).length) { setErrors(e); return }
+    setErrors({})
+    setStep('processing')
+
+    // Simulate network delay
+    await new Promise(r => setTimeout(r, 2200))
+
+    try {
+      const now = new Date()
+      const expires = new Date(now)
+      expires.setMonth(expires.getMonth() + 1)
+
+      await updateDoc(doc(db, 'users', user.uid), {
+        'subscription.plan': planId,
+        'subscription.startDate': now.toISOString(),
+        'subscription.expiresAt': expires.toISOString(),
+        'subscription.paymentRef': `SATIM-${Date.now()}`,
+      })
+
+      setStep('success')
+    } catch (err) {
+      console.error(err)
+      setStep('form')
+      setErrors({ global: 'Erreur lors de la mise à jour. Réessayez.' })
+    }
+  }
+
+  // Flip card on CVV focus
+  const [cardFlipped, setCardFlipped] = useState(false)
+
+  return (
+    <main className="pay-page">
+      <div aria-hidden className="pay-bg-glow pay-bg-glow--1" style={{ background: plan.glow }} />
+      <div aria-hidden className="pay-bg-glow pay-bg-glow--2" />
+
+      <div className="pay-container">
+
+        {/* Back */}
+        {step === 'form' && (
+          <Link href="/pricing" className="pay-back-btn">
+            <ArrowLeft size={15} />
+            Retour aux plans
+          </Link>
+        )}
+
+        {/* ── Success screen ── */}
+        {step === 'success' && (
+          <div className="pay-success">
+            <div className="pay-success__ring" style={{ '--plan-color': plan.color, '--plan-glow': plan.glow }}>
+              <CheckCircle2 size={48} color={plan.color} />
+            </div>
+            <h2 className="pay-success__title">Paiement réussi !</h2>
+            <p className="pay-success__sub">
+              Votre plan <span style={{ color: plan.color, fontWeight: 700 }}>{plan.name}</span> est maintenant actif.
+            </p>
+            <div className="pay-success__detail">
+              <span>{plan.icon}</span>
+              <span>{plan.limit} · renouvelé dans 30 jours</span>
+            </div>
+            <button
+              onClick={() => router.push('/dashboard')}
+              className="pay-success__btn"
+              style={{ background: plan.color }}
+            >
+              Aller au Dashboard
+            </button>
+          </div>
+        )}
+
+        {/* ── Processing screen ── */}
+        {step === 'processing' && (
+          <div className="pay-processing">
+            <div className="pay-processing__spinner" style={{ '--plan-color': plan.color }}>
+              <Loader2 size={36} />
+            </div>
+            <p className="pay-processing__label">Traitement en cours…</p>
+            <p className="pay-processing__sub">Ne fermez pas cette page.</p>
+          </div>
+        )}
+
+        {/* ── Form ── */}
+        {step === 'form' && (
+          <div className="pay-layout">
+
+            {/* Left — Order summary */}
+            <div className="pay-summary">
+              <div className="pay-summary__header">
+                <div className="pay-summary__plan-icon" style={{ color: plan.color, background: `${plan.color}15` }}>
+                  {plan.icon}
+                </div>
+                <div>
+                  <p className="pay-summary__label">Plan sélectionné</p>
+                  <p className="pay-summary__plan-name" style={{ color: plan.color }}>{plan.name}</p>
+                </div>
+              </div>
+
+              <div className="pay-summary__divider" />
+
+              <div className="pay-summary__row">
+                <span>Abonnement mensuel</span>
+                <span>{plan.price} DA</span>
+              </div>
+              <div className="pay-summary__row">
+                <span>Taxes</span>
+                <span>Incluses</span>
+              </div>
+              <div className="pay-summary__divider" />
+              <div className="pay-summary__row pay-summary__row--total">
+                <span>Total</span>
+                <span style={{ color: plan.color }}>{plan.price} DA</span>
+              </div>
+
+              <div className="pay-summary__limit">
+                <Clock size={13} />
+                {plan.limit} · renouvelé automatiquement
+              </div>
+
+              <div className="pay-summary__security">
+                <ShieldCheck size={13} />
+                Paiement sécurisé · SATIM
+              </div>
+            </div>
+
+            {/* Right — Card form */}
+            <div className="pay-form-col">
+
+              {/* Visual card */}
+              <div className={`pay-card-visual ${cardFlipped ? 'pay-card-visual--flipped' : ''}`} ref={cardRef}>
+                <div className="pay-card-visual__front" style={{ '--plan-color': plan.color, '--plan-glow': plan.glow }}>
+                  <div className="pay-card-visual__top">
+                    <div className="pay-card-visual__chip" />
+                    <div className="pay-card-visual__brand">SATIM</div>
+                  </div>
+                  <p className="pay-card-visual__number">
+                    {cardNumber || '•••• •••• •••• ••••'}
+                  </p>
+                  <div className="pay-card-visual__bottom">
+                    <div>
+                      <p className="pay-card-visual__field-label">Titulaire</p>
+                      <p className="pay-card-visual__field-val">{cardName || 'VOTRE NOM'}</p>
+                    </div>
+                    <div>
+                      <p className="pay-card-visual__field-label">Expire</p>
+                      <p className="pay-card-visual__field-val">{expiry || 'MM/AA'}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="pay-card-visual__back">
+                  <div className="pay-card-visual__stripe" />
+                  <div className="pay-card-visual__cvv-row">
+                    <span className="pay-card-visual__cvv-label">CVV</span>
+                    <span className="pay-card-visual__cvv-val">{cvv ? '•'.repeat(cvv.length) : '•••'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Fields */}
+              <div className="pay-form">
+                {errors.global && (
+                  <p className="pay-form__global-error">{errors.global}</p>
+                )}
+
+                <div className="pay-form__field">
+                  <label className="pay-form__label">Numéro de carte</label>
+                  <div className={`pay-form__input-wrap ${errors.cardNumber ? 'pay-form__input-wrap--error' : ''}`}>
+                    <CreditCard size={15} className="pay-form__input-icon" />
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="1234 5678 9012 3456"
+                      value={cardNumber}
+                      onChange={e => setCardNumber(formatCardNumber(e.target.value))}
+                      className="pay-form__input"
+                      maxLength={19}
+                    />
+                  </div>
+                  {errors.cardNumber && <p className="pay-form__error">{errors.cardNumber}</p>}
+                </div>
+
+                <div className="pay-form__field">
+                  <label className="pay-form__label">Nom sur la carte</label>
+                  <div className={`pay-form__input-wrap ${errors.cardName ? 'pay-form__input-wrap--error' : ''}`}>
+                    <input
+                      type="text"
+                      placeholder="AHMED BENALI"
+                      value={cardName}
+                      onChange={e => setCardName(e.target.value.toUpperCase())}
+                      className="pay-form__input"
+                    />
+                  </div>
+                  {errors.cardName && <p className="pay-form__error">{errors.cardName}</p>}
+                </div>
+
+                <div className="pay-form__row">
+                  <div className="pay-form__field">
+                    <label className="pay-form__label">Date d'expiration</label>
+                    <div className={`pay-form__input-wrap ${errors.expiry ? 'pay-form__input-wrap--error' : ''}`}>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="MM/AA"
+                        value={expiry}
+                        onChange={e => setExpiry(formatExpiry(e.target.value))}
+                        className="pay-form__input"
+                        maxLength={5}
+                      />
+                    </div>
+                    {errors.expiry && <p className="pay-form__error">{errors.expiry}</p>}
+                  </div>
+
+                  <div className="pay-form__field">
+                    <label className="pay-form__label">CVV</label>
+                    <div className={`pay-form__input-wrap ${errors.cvv ? 'pay-form__input-wrap--error' : ''}`}>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="•••"
+                        value={cvv}
+                        onChange={e => setCvv(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                        onFocus={() => setCardFlipped(true)}
+                        onBlur={() => setCardFlipped(false)}
+                        className="pay-form__input"
+                        maxLength={4}
+                      />
+                    </div>
+                    {errors.cvv && <p className="pay-form__error">{errors.cvv}</p>}
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleSubmit}
+                  className="pay-form__submit"
+                  style={{ '--plan-color': plan.color, '--plan-glow': plan.glow }}
+                >
+                  <Lock size={15} strokeWidth={2.5} />
+                  Payer {plan.price} DA
+                </button>
+
+                <p className="pay-form__disclaimer">
+                  <ShieldCheck size={12} />
+                  Simulation uniquement — aucun vrai paiement effectué
+                </p>
+              </div>
+
+            </div>
+          </div>
+        )}
+      </div>
+    </main>
+  )
+}
+
+export default function PaymentPage() {
+  return <Suspense><PaymentComponent /></Suspense>
+}
+pricing:
+'use client'
+
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { auth, db } from '../../firebase'
+import { onAuthStateChanged } from 'firebase/auth'
+import { doc, getDoc } from 'firebase/firestore'
+import {
+  ArrowLeft,
+  Check,
+  Zap,
+  Crown,
+  Star,
+  Sparkles,
+  Clock,
+  Video,
+  HandMetal,
+  Infinity,
+  ChevronRight,
+} from 'lucide-react'
+import './pricing.css'
+
+const PLANS = [
+  {
+    id: 'free',
+    name: 'Gratuit',
+    price: 0,
+    period: null,
+    color: '#94a3b8',
+    glow: 'rgba(148,163,184,0.15)',
+    border: 'rgba(148,163,184,0.25)',
+    icon: <Clock size={22} />,
+    badge: null,
+    limit: '60 min / jour',
+    features: [
+      'Détection de signes LSF',
+      'Appels vidéo (60 min/jour)',
+      'Entraînement (60 min/jour)',
+      'Chat intégré',
+    ],
+    cta: 'Plan actuel',
+    disabled: true,
+  },
+  {
+    id: 'plus',
+    name: 'Plus',
+    price: 590,
+    period: 'mois',
+    color: '#60a5fa',
+    glow: 'rgba(96,165,250,0.18)',
+    border: 'rgba(96,165,250,0.35)',
+    icon: <Zap size={22} />,
+    badge: null,
+    limit: '6h / jour',
+    features: [
+      'Tout du plan Gratuit',
+      'Appels vidéo (6h/jour)',
+      'Entraînement (6h/jour)',
+      'Priorité de traitement',
+      'Support par email',
+    ],
+    cta: 'Choisir Plus',
+    disabled: false,
+  },
+  {
+    id: 'pro',
+    name: 'Pro',
+    price: 1490,
+    period: 'mois',
+    color: '#a78bfa',
+    glow: 'rgba(167,139,250,0.2)',
+    border: 'rgba(167,139,250,0.4)',
+    icon: <Star size={22} />,
+    badge: 'Populaire',
+    limit: 'Illimité',
+    features: [
+      'Tout du plan Plus',
+      'Appels & entraînement illimités',
+      'Détection haute précision',
+      'Export des sessions',
+      'Support prioritaire',
+    ],
+    cta: 'Choisir Pro',
+    disabled: false,
+  },
+  {
+    id: 'vip',
+    name: 'VIP',
+    price: 3900,
+    period: 'mois',
+    color: '#fbbf24',
+    glow: 'rgba(251,191,36,0.18)',
+    border: 'rgba(251,191,36,0.35)',
+    icon: <Crown size={22} />,
+    badge: 'Premium',
+    limit: 'Illimité',
+    features: [
+      'Tout du plan Pro',
+      'Accès anticipé aux nouveautés',
+      'Session onboarding personnalisée',
+      'Support dédié 24/7',
+      'Badge VIP sur le profil',
+    ],
+    cta: 'Choisir VIP',
+    disabled: false,
+  },
+]
+
+export default function PricingPage() {
+  const [user, setUser] = useState(null)
+  const [currentPlan, setCurrentPlan] = useState('free')
+  const [ready, setReady] = useState(false)
+  const router = useRouter()
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, async (u) => {
+      if (u) {
+        setUser(u)
+        const snap = await getDoc(doc(db, 'users', u.uid))
+        if (snap.exists()) {
+          setCurrentPlan(snap.data()?.subscription?.plan || 'free')
+        }
+      }
+      setReady(true)
+    })
+    return () => unsub()
+  }, [])
+
+  const handleChoose = (planId) => {
+    if (planId === 'free' || planId === currentPlan) return
+    router.push(`/payment?plan=${planId}`)
+  }
+
+  return (
+    <main className="pricing-page">
+      <div aria-hidden className="pricing-bg-glow pricing-bg-glow--1" />
+      <div aria-hidden className="pricing-bg-glow pricing-bg-glow--2" />
+      <div aria-hidden className="pricing-bg-glow pricing-bg-glow--3" />
+
+      <div className="pricing-container">
+
+        {/* Header */}
+        <div className="pricing-header">
+          <Link href="/dashboard" className="pricing-back-btn">
+            <ArrowLeft size={16} />
+            Dashboard
+          </Link>
+
+          <div className="pricing-header__copy">
+            <div className="pricing-header__eyebrow">
+              <Sparkles size={14} />
+              Abonnements
+            </div>
+            <h1 className="pricing-header__title">
+              Choisissez votre plan
+            </h1>
+            <p className="pricing-header__subtitle">
+              Débloquez tout le potentiel de la communication en langue des signes.
+            </p>
+          </div>
+        </div>
+
+        {/* Cards */}
+        <div className="pricing-grid">
+          {PLANS.map((plan) => {
+            const isCurrentPlan = plan.id === currentPlan
+            const isUpgrade = PLANS.findIndex(p => p.id === plan.id) > PLANS.findIndex(p => p.id === currentPlan)
+
+            return (
+              <div
+                key={plan.id}
+                className={`pricing-card ${plan.id === 'pro' ? 'pricing-card--featured' : ''} ${isCurrentPlan ? 'pricing-card--current' : ''}`}
+                style={{
+                  '--plan-color': plan.color,
+                  '--plan-glow': plan.glow,
+                  '--plan-border': plan.border,
+                }}
+              >
+                {plan.badge && (
+                  <div className="pricing-card__badge" style={{ color: plan.color, background: `${plan.color}18`, border: `1px solid ${plan.color}40` }}>
+                    {plan.badge}
+                  </div>
+                )}
+
+                {isCurrentPlan && (
+                  <div className="pricing-card__current-badge">
+                    Plan actuel
+                  </div>
+                )}
+
+                <div className="pricing-card__icon" style={{ color: plan.color, background: `${plan.color}15` }}>
+                  {plan.icon}
+                </div>
+
+                <h2 className="pricing-card__name" style={{ color: plan.color }}>
+                  {plan.name}
+                </h2>
+
+                <div className="pricing-card__price">
+                  {plan.price === 0 ? (
+                    <span className="pricing-card__price-free">Gratuit</span>
+                  ) : (
+                    <>
+                      <span className="pricing-card__price-amount">{plan.price.toLocaleString('fr-DZ')}</span>
+                      <span className="pricing-card__price-currency"> DA</span>
+                      <span className="pricing-card__price-period"> / {plan.period}</span>
+                    </>
+                  )}
+                </div>
+
+                <div className="pricing-card__limit">
+                  <Clock size={13} />
+                  {plan.limit}
+                </div>
+
+                <ul className="pricing-card__features">
+                  {plan.features.map((f, i) => (
+                    <li key={i} className="pricing-card__feature">
+                      <span className="pricing-card__feature-check" style={{ color: plan.color }}>
+                        <Check size={13} strokeWidth={2.5} />
+                      </span>
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+
+                <button
+                  onClick={() => handleChoose(plan.id)}
+                  disabled={isCurrentPlan || plan.id === 'free'}
+                  className={`pricing-card__cta ${isCurrentPlan ? 'pricing-card__cta--current' : isUpgrade ? 'pricing-card__cta--upgrade' : 'pricing-card__cta--default'}`}
+                  style={isUpgrade ? { '--btn-color': plan.color, '--btn-glow': plan.glow } : {}}
+                >
+                  {isCurrentPlan ? (
+                    'Plan actuel'
+                  ) : (
+                    <>
+                      {plan.cta}
+                      <ChevronRight size={15} strokeWidth={2.5} />
+                    </>
+                  )}
+                </button>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Footer note */}
+        <p className="pricing-footer">
+          Paiement sécurisé via SATIM · Annulation à tout moment · Tarifs en Dinar Algérien (DA)
+        </p>
+
+      </div>
+    </main>
+  )
+}
+profile:
+'use client'
+
+import { useState, useEffect } from 'react'
+import { auth } from '../../firebase'
+import { updateProfile, updatePassword, sendEmailVerification } from 'firebase/auth'
+import { useRouter } from 'next/navigation'
+import { User, CheckCircle, Mail, Lock, Save, KeyRound } from 'lucide-react'
+import './profile.css'
+
+export default function Profile() {
+  const [user, setUser]         = useState(null)
+  const [name, setName]         = useState('')
+  const [photo, setPhoto]       = useState('')
+  const [password, setPassword] = useState('')
+  const [message, setMessage]   = useState('')
+  const [error, setError]       = useState('')
+  const [loading, setLoading]   = useState(false)
+
+  const router = useRouter()
+
+  useEffect(() => {
+    const currentUser = auth.currentUser
+    if (!currentUser) {
+      router.push('/login')
+      return
+    }
+
+    setUser(currentUser)
+    setName(currentUser.displayName || '')
+    setPhoto(currentUser.photoURL || '')
+  }, [router])
+
+  const handleUpdateProfile = async () => {
+    setError('')
+    setMessage('')
+    setLoading(true)
+
+    try {
+      await updateProfile(auth.currentUser, {
+        displayName: name,
+        photoURL: photo,
+      })
+
+      setMessage('Profil mis à jour avec succès')
+    } catch (err) {
+      setError('Erreur lors de la mise à jour')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleChangePassword = async () => {
+    setError('')
+    setMessage('')
+    setLoading(true)
+
+    try {
+      if (!auth.currentUser.emailVerified) {
+        await sendEmailVerification(auth.currentUser)
+        setMessage('Vérifiez votre email avant de changer le mot de passe')
+        return
+      }
+
+      await updatePassword(auth.currentUser, password)
+      setMessage('Mot de passe mis à jour')
+      setPassword('')
+    } catch (err) {
+      setError('Erreur: reconnectez-vous puis réessayez')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <main className="profile-main">
+      <div className="profile-card">
+
+        <h2 className="profile-title">
+          <User size={24} />
+          Mon Profil
+        </h2>
+
+        {error && (
+          <div className="profile-error">
+            {error}
+          </div>
+        )}
+
+        {message && (
+          <div className="profile-success">
+            <CheckCircle size={18} />
+            {message}
+          </div>
+        )}
+
+        <div className="profile-avatar-wrap">
+          <img
+            src={photo || 'https://via.placeholder.com/100'}
+            alt="profile"
+            className="profile-avatar"
+          />
+        </div>
+
+        <div className="profile-fields">
+          <input
+            type="text"
+            placeholder="Nom"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="profile-input"
+          />
+
+          <input
+            type="text"
+            placeholder="URL de la photo"
+            value={photo}
+            onChange={(e) => setPhoto(e.target.value)}
+            className="profile-input"
+          />
+
+          <button
+            onClick={handleUpdateProfile}
+            className="profile-btn"
+            disabled={loading}
+          >
+            <Save size={18} />
+            Mettre à jour le profil
+          </button>
+
+          <input
+            type="password"
+            placeholder="Nouveau mot de passe"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="profile-input"
+          />
+
+          <button
+            onClick={handleChangePassword}
+            className="profile-btn"
+            disabled={loading}
+          >
+            <KeyRound size={18} />
+            Changer mot de passe
+          </button>
+        </div>
+
+      </div>
+    </main>
+  )
+}
+layout:
+import { Geist, Geist_Mono } from "next/font/google";
+import "./globals.css";
+import ConditionalNav from "@/components/ConditionalNav";
+import SessionManager from "@/components/SessionManager";
+
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+export const metadata = {
+  title: "Sordo",
+  description: "Communication sans barrières",
+};
+
+export default function RootLayout({ children }) {
+  return (
+    <html lang="en">
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        <SessionManager />
+        <ConditionalNav />
+        {children}
+      </body>
+    </html>
+  );
+}
+main:
+import Link from "next/link";
+import { Handshake, Zap, Lock, Globe, Play } from "lucide-react";
+import "./page.css";
+import Footer from '../components/footer'
+
+
+export default function Home() {
+  return (
+    <main className="home-main">
+
+      {/* ── Hero Section ── */}
+      <section className="hero-section">
+
+        {/* Background glow */}
+        <div aria-hidden className="hero-glow" />
+
+        {/* Badge */}
+        <div className="hero-badge">
+          <span className="hero-badge-dot" />
+          Nouvelle technologie de communication
+        </div>
+
+        {/* Title */}
+        <h1 className="hero-title">SORDO</h1>
+
+        <p className="hero-subtitle">Communication sans barrières</p>
+
+        <p className="hero-description">
+          SORDO est une plateforme innovante qui brise les barrières de communication
+          entre les personnes sourdes, malentendantes et entendantes, grâce à des outils
+          intelligents en temps réel.
+        </p>
+
+        {/* CTA Buttons */}
+        <div className="hero-cta">
+          <Link href="/signup" style={{ textDecoration: "none" }}>
+            <button className="btn-primary">Commencer gratuitement</button>
+          </Link>
+          <Link href="/about" style={{ textDecoration: "none" }}>
+            <button className="btn-secondary">En savoir plus</button>
+          </Link>
+        </div>
+
+        {/* Media placeholder */}
+        <div className="hero-media">
+          <div className="hero-media-icon">
+            <Play size={24} strokeWidth={1.5} />
+          </div>
+          Votre vidéo / photo de démo ici
+        </div>
+
+      </section>
+
+      {/* ── Features strip ── */}
+      <section className="features-section">
+        {[
+          { icon: <Handshake size={28} strokeWidth={1.5} />, title: "Accessibilité totale", desc: "Une interface pensée pour tous, adaptée aux besoins de chaque utilisateur." },
+          { icon: <Zap       size={28} strokeWidth={1.5} />, title: "Temps réel",           desc: "Traduction et communication instantanées sans délai perceptible." },
+          { icon: <Lock      size={28} strokeWidth={1.5} />, title: "Privé & sécurisé",     desc: "Vos conversations restent confidentielles et chiffrées de bout en bout." },
+          { icon: <Globe     size={28} strokeWidth={1.5} />, title: "Multilingue",          desc: "Fonctionne en plusieurs langues et langages des signes." },
+        ].map((f) => (
+          <div key={f.title} className="feature-card">
+            <div className="feature-icon">{f.icon}</div>
+            <h3 className="feature-title">{f.title}</h3>
+            <p className="feature-desc">{f.desc}</p>
+          </div>
+        ))}
+      </section>
+<Footer />
+    </main>
+  );
+}
+login:
+'use client'
+import { useState } from 'react'
+import Link from 'next/link'
+import { auth } from '../../firebase'
+import { signInWithEmailAndPassword } from 'firebase/auth'
+import { useRouter } from 'next/navigation'
+import { Eye, EyeOff, HandMetal } from 'lucide-react'
+import './login.css'
+
+export default function Login() {
+  const [email, setEmail]       = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError]       = useState('')
+  const [loading, setLoading]   = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const router = useRouter()
+
+  const handleLogin = async () => {
+    if (!email || !password) return setError('Please fill all fields')
+    try {
+      setLoading(true)
+      await signInWithEmailAndPassword(auth, email, password)
+      router.push('/dashboard')
+    } catch (err) {
+      setError('Invalid email or password')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <main className="login-main">
+
+      {/* Background glow */}
+      <div aria-hidden className="login-glow" />
+
+      <div className="login-card">
+
+        {/* Header */}
+        <div className="login-header">
+          <Link href="/" className="login-logo">SORDO</Link>
+          <h2 className="login-title">
+            Bon retour <HandMetal size={22} strokeWidth={1.5} className="login-title-icon" />
+          </h2>
+          <p className="login-subtitle">Connectez-vous à votre compte SORDO</p>
+        </div>
+
+        {/* Error */}
+        {error && <div className="login-error">{error}</div>}
+
+        {/* Fields */}
+        <div className="login-fields">
+          <div>
+            <label className="login-field-label">Email</label>
+            <input
+              type="email"
+              placeholder="votre@email.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="login-input"
+            />
+          </div>
+
+          <div>
+            <label className="login-field-label">Mot de passe</label>
+            <div className="login-input-wrapper">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="login-input"
+              />
+              <button
+                type="button"
+                className="login-eye-btn"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+              >
+                {showPassword
+                  ? <EyeOff size={18} strokeWidth={1.8} />
+                  : <Eye    size={18} strokeWidth={1.8} />}
+              </button>
+            </div>
+          </div>
+
+          <button
+            onClick={handleLogin}
+            disabled={loading}
+            className="login-btn"
+          >
+            {loading ? 'Connexion...' : 'Se connecter'}
+          </button>
+        </div>
+
+        {/* Divider */}
+        <div className="login-divider">
+          <div className="login-divider-line" />
+          <span className="login-divider-text">ou</span>
+          <div className="login-divider-line" />
+        </div>
+
+        {/* Footer */}
+        <p className="login-footer">
+          Pas encore de compte ?{' '}
+          <Link href="/signup">S'inscrire</Link>
+        </p>
+
+      </div>
+    </main>
+  )
+}
+signup:
+'use client'
+import { useState } from 'react'
+import Link from 'next/link'
+import { auth, db } from '../../firebase'
+import { createUserWithEmailAndPassword, updateProfile, sendEmailVerification } from 'firebase/auth'
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore'
+import { useRouter } from 'next/navigation'
+import { Mic, HandMetal, Eye, EyeOff, Check, X } from 'lucide-react'
+import './signup.css'
+
+const passwordRules = [
+  { label: 'Au moins 8 caractères',        test: (p) => p.length >= 8 },
+  { label: 'Une lettre majuscule',          test: (p) => /[A-Z]/.test(p) },
+  { label: 'Un chiffre',                   test: (p) => /[0-9]/.test(p) },
+  { label: 'Un caractère spécial (!@#…)',  test: (p) => /[^A-Za-z0-9]/.test(p) },
+]
+
+export default function Signup() {
+  const [role, setRole]               = useState('')
+  const [name, setName]               = useState('')
+  const [email, setEmail]             = useState('')
+  const [password, setPassword]       = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [passwordFocused, setPasswordFocused] = useState(false)
+  const [error, setError]             = useState('')
+  const [loading, setLoading]         = useState(false)
+  const [emailSent, setEmailSent]     = useState(false)
+  const router = useRouter()
+
+  const passwordStrength = passwordRules.filter((r) => r.test(password)).length
+  const passwordValid    = passwordStrength === passwordRules.length
+
+  const handleSignup = async () => {
+    if (!role)                        return setError('Veuillez sélectionner Parlant ou Non-Parlant')
+    if (!name || !email || !password) return setError('Veuillez remplir tous les champs')
+    if (!passwordValid)               return setError('Le mot de passe ne respecte pas les critères de sécurité')
+    try {
+      setLoading(true)
+      setError('')
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password)
+      const user = userCredential.user
+      await updateProfile(user, { displayName: name })
+      await setDoc(doc(db, 'users', user.uid), {
+        name,
+        email,
+        role,
+        createdAt: serverTimestamp(),
+        subscription: {
+          plan: 'free',
+          startDate: serverTimestamp(),
+          expiresAt: null,
+        },
+        usage: {
+          totalMinutes: 0,
+          callMinutes: 0,
+          entrainementMinutes: 0,
+          usageByDay: {},
+        }
+      })
+      await sendEmailVerification(user)
+      setEmailSent(true)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  /* ── Email sent screen ── */
+  if (emailSent) {
+    return (
+      <main className="signup-main">
+        <div aria-hidden className="signup-glow" />
+        <div className="signup-card">
+          <div className="signup-verify-screen">
+            <div className="signup-verify-icon">
+              <Check size={32} strokeWidth={2} />
+            </div>
+            <h2 className="signup-title">Vérifiez votre email</h2>
+            <p className="signup-verify-text">
+              Un lien de confirmation a été envoyé à <strong>{email}</strong>.
+              Cliquez sur le lien pour activer votre compte.
+            </p>
+            <p className="signup-verify-hint">
+              Pensez à vérifier vos spams si vous ne le voyez pas.
+            </p>
+            <Link href="/login" className="signup-btn signup-btn-link">
+              Aller à la connexion
+            </Link>
+          </div>
+        </div>
+      </main>
+    )
+  }
+
+  return (
+    <main className="signup-main">
+
+      {/* Background glow */}
+      <div aria-hidden className="signup-glow" />
+
+      <div className="signup-card">
+
+        {/* Header */}
+        <div className="signup-header">
+          <Link href="/" className="signup-logo">SORDO</Link>
+          <h2 className="signup-title">Créer un compte</h2>
+          <p className="signup-subtitle">Rejoignez la communauté SORDO</p>
+        </div>
+
+        {/* Role selector */}
+        <div className="signup-role-wrap">
+          <p className="signup-role-label">Je suis :</p>
+          <div className="signup-role-btns">
+            {[
+              { value: 'parlant',     label: 'Parlant',     icon: <Mic      size={18} strokeWidth={1.8} /> },
+              { value: 'non-parlant', label: 'Non-Parlant', icon: <HandMetal size={18} strokeWidth={1.8} /> },
+            ].map((r) => (
+              <button
+                key={r.value}
+                onClick={() => setRole(r.value)}
+                className={`signup-role-btn ${role === r.value ? 'selected' : ''}`}
+              >
+                <span className="signup-role-icon">{r.icon}</span>
+                {r.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Error */}
+        {error && <div className="signup-error">{error}</div>}
+
+        {/* Fields */}
+        <div className="signup-fields">
+          <div>
+            <label className="signup-field-label">Nom complet</label>
+            <input
+              type="text"
+              placeholder="Ahmed Kebir"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="signup-input"
+            />
+          </div>
+
+          <div>
+            <label className="signup-field-label">Email</label>
+            <input
+              type="email"
+              placeholder="votre@email.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="signup-input"
+            />
+          </div>
+
+          <div>
+            <label className="signup-field-label">Mot de passe</label>
+            <div className="signup-input-wrapper">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onFocus={() => setPasswordFocused(true)}
+                onBlur={() => setPasswordFocused(false)}
+                className="signup-input"
+              />
+              <button
+                type="button"
+                className="signup-eye-btn"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? 'Masquer' : 'Afficher'}
+              >
+                {showPassword
+                  ? <EyeOff size={18} strokeWidth={1.8} />
+                  : <Eye    size={18} strokeWidth={1.8} />}
+              </button>
+            </div>
+
+            {/* Strength bar */}
+            {(passwordFocused || password.length > 0) && (
+              <div className="signup-strength">
+                <div className="signup-strength-bar">
+                  {[0, 1, 2, 3].map((i) => (
+                    <div
+                      key={i}
+                      className={`signup-strength-seg ${i < passwordStrength ? `strength-${passwordStrength}` : ''}`}
+                    />
+                  ))}
+                </div>
+                <ul className="signup-rules">
+                  {passwordRules.map((r) => {
+                    const ok = r.test(password)
+                    return (
+                      <li key={r.label} className={`signup-rule ${ok ? 'ok' : ''}`}>
+                        {ok
+                          ? <Check size={12} strokeWidth={2.5} />
+                          : <X     size={12} strokeWidth={2.5} />}
+                        {r.label}
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
+            )}
+          </div>
+
+          <button
+            onClick={handleSignup}
+            disabled={loading}
+            className="signup-btn"
+          >
+            {loading ? 'Création du compte...' : 'Créer mon compte'}
+          </button>
+        </div>
+
+        {/* Divider */}
+        <div className="signup-divider">
+          <div className="signup-divider-line" />
+          <span className="signup-divider-text">ou</span>
+          <div className="signup-divider-line" />
+        </div>
+
+        {/* Footer */}
+        <p className="signup-footer">
+          Déjà un compte ?{' '}
+          <Link href="/login">Se connecter</Link>
+        </p>
+
+      </div>
+    </main>
+  )
+}

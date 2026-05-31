@@ -18,9 +18,16 @@ import {
   HandMetal,
   Infinity,
   ChevronRight,
+  GraduationCap,   // ← Academic Mode icon
+  Lock,            // ← Lock icon
 } from 'lucide-react'
 import './pricing.css'
 
+// ─────────────────────────────────────────────────────────────
+// PLANS
+// • academicMode: true/false → shows the Academic Mode feature
+//   with a special callout in the VIP card only.
+// ─────────────────────────────────────────────────────────────
 const PLANS = [
   {
     id: 'free',
@@ -33,11 +40,12 @@ const PLANS = [
     icon: <Clock size={22} />,
     badge: null,
     limit: '60 min / jour',
+    academicMode: false,   // locked
     features: [
-      'Détection de signes LSF',
-      'Appels vidéo (60 min/jour)',
-      'Entraînement (60 min/jour)',
-      'Chat intégré',
+      { text: 'Détection de signes LSF', academic: false },
+      { text: 'Appels vidéo (60 min/jour)', academic: false },
+      { text: 'Entraînement (60 min/jour)', academic: false },
+      { text: 'Chat intégré', academic: false },
     ],
     cta: 'Plan actuel',
     disabled: true,
@@ -53,12 +61,13 @@ const PLANS = [
     icon: <Zap size={22} />,
     badge: null,
     limit: '6h / jour',
+    academicMode: false,   // locked
     features: [
-      'Tout du plan Gratuit',
-      'Appels vidéo (6h/jour)',
-      'Entraînement (6h/jour)',
-      'Priorité de traitement',
-      'Support par email',
+      { text: 'Tout du plan Gratuit', academic: false },
+      { text: 'Appels vidéo (6h/jour)', academic: false },
+      { text: 'Entraînement (6h/jour)', academic: false },
+      { text: 'Priorité de traitement', academic: false },
+      { text: 'Support par email', academic: false },
     ],
     cta: 'Choisir Plus',
     disabled: false,
@@ -74,12 +83,13 @@ const PLANS = [
     icon: <Star size={22} />,
     badge: 'Populaire',
     limit: 'Illimité',
+    academicMode: false,   // locked
     features: [
-      'Tout du plan Plus',
-      'Appels & entraînement illimités',
-      'Détection haute précision',
-      'Export des sessions',
-      'Support prioritaire',
+      { text: 'Tout du plan Plus', academic: false },
+      { text: 'Appels & entraînement illimités', academic: false },
+      { text: 'Détection haute précision', academic: false },
+      { text: 'Export des sessions', academic: false },
+      { text: 'Support prioritaire', academic: false },
     ],
     cta: 'Choisir Pro',
     disabled: false,
@@ -95,12 +105,14 @@ const PLANS = [
     icon: <Crown size={22} />,
     badge: 'Premium',
     limit: 'Illimité',
+    academicMode: true,    // ✅ UNLOCKED
     features: [
-      'Tout du plan Pro',
-      'Accès anticipé aux nouveautés',
-      'Session onboarding personnalisée',
-      'Support dédié 24/7',
-      'Badge VIP sur le profil',
+      { text: 'Tout du plan Pro', academic: false },
+      { text: 'Accès anticipé aux nouveautés', academic: false },
+      { text: 'Session onboarding personnalisée', academic: false },
+      { text: 'Support dédié 24/7', academic: false },
+      { text: 'Badge VIP sur le profil', academic: false },
+      { text: 'Mode Académique (entreprises & institutions)', academic: true },  // ← special row
     ],
     cta: 'Choisir VIP',
     disabled: false,
@@ -161,6 +173,16 @@ export default function PricingPage() {
           </div>
         </div>
 
+        {/* Academic Mode callout banner */}
+        <div className="pricing-academic-banner">
+          <GraduationCap size={18} color="#fbbf24" />
+          <span>
+            <strong style={{ color: '#fbbf24' }}>Mode Académique</strong> — Intégrez Sordo dans votre entreprise ou
+            institution pour former vos équipes à la LSF. Disponible exclusivement avec le plan{' '}
+            <strong style={{ color: '#fbbf24' }}>VIP</strong>.
+          </span>
+        </div>
+
         {/* Cards */}
         <div className="pricing-grid">
           {PLANS.map((plan) => {
@@ -214,16 +236,35 @@ export default function PricingPage() {
                   {plan.limit}
                 </div>
 
+                {/* Features list */}
                 <ul className="pricing-card__features">
                   {plan.features.map((f, i) => (
-                    <li key={i} className="pricing-card__feature">
-                      <span className="pricing-card__feature-check" style={{ color: plan.color }}>
-                        <Check size={13} strokeWidth={2.5} />
+                    <li
+                      key={i}
+                      className={`pricing-card__feature ${f.academic ? 'pricing-card__feature--academic' : ''}`}
+                      style={f.academic ? { color: '#fbbf24' } : {}}
+                    >
+                      <span
+                        className="pricing-card__feature-check"
+                        style={{ color: f.academic ? '#fbbf24' : plan.color }}
+                      >
+                        {f.academic
+                          ? <GraduationCap size={13} strokeWidth={2.5} />
+                          : <Check size={13} strokeWidth={2.5} />
+                        }
                       </span>
-                      {f}
+                      {f.text}
                     </li>
                   ))}
                 </ul>
+
+                {/* Academic mode lock indicator for free/plus/pro */}
+                {!plan.academicMode && (
+                  <div className="pricing-card__academic-lock">
+                    <Lock size={11} strokeWidth={2.5} />
+                    Mode Académique non disponible
+                  </div>
+                )}
 
                 <button
                   onClick={() => handleChoose(plan.id)}
