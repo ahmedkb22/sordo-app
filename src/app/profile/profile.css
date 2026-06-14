@@ -132,6 +132,10 @@
   cursor: not-allowed;
 }
 
+
+
+
+
 /* ── Responsive ─────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .profile-main {

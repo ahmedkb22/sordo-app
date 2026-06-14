@@ -57,10 +57,15 @@ import {
 } from 'lucide-react'
 import './call.css'
 
+// ── STUN servers — multiple fallbacks for restrictive networks ──
 const servers = {
   iceServers: [
-    { urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] }
-  ]
+    { urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] },
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:global.stun.twilio.com:3478' },
+    { urls: 'stun:stun.cloudflare.com:3478' },
+  ],
+  iceCandidatePoolSize: 10,
 }
 
 function CallComponent() {
@@ -120,13 +125,13 @@ function CallComponent() {
   }, [])
 
   // ── Voice subtitles hook ────────────────────────────────────
-  const { 
-    subtitle: voiceSubtitle, 
-    startVoice, 
-    stopVoice, 
+  const {
+    subtitle: voiceSubtitle,
+    startVoice,
+    stopVoice,
     voiceActive,
     changeLanguage,
-    selectedLang 
+    selectedLang
   } = useVoiceSubtitles()
 
   const sendVoiceSubtitleToChat = async (text, isFinal) => {
@@ -230,44 +235,118 @@ function CallComponent() {
     }
   }, [])
 
-  // ── Camera / WebRTC ─────────────────────────────────────────
+  // ── Camera with full error handling + fallbacks ─────────────
   const startCamera = async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+    // 1. HTTPS check
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+      alert('La caméra nécessite une connexion sécurisée (HTTPS). Contactez l\'administrateur du site.')
+      throw new Error('HTTPS required')
+    }
+
+    // 2. API availability check
+    if (!navigator.mediaDevices?.getUserMedia) {
+      alert('Votre navigateur ne supporte pas l\'accès à la caméra. Essayez Chrome ou Firefox.')
+      throw new Error('getUserMedia not supported')
+    }
+
+    // 3. Release any existing stream first
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach(t => t.stop())
+      localStreamRef.current = null
+    }
+
+    let stream = null
+
+    try {
+      // 4. Try with ideal HD constraints
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
+        audio: true,
+      })
+    } catch (err) {
+      console.warn('HD constraints failed, trying basic...', err.name)
+      try {
+        // 5. Fallback: basic constraints
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+      } catch (err2) {
+        console.warn('Audio+video failed, trying video only...', err2.name)
+        try {
+          // 6. Last resort: video only (no mic)
+          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+        } catch (err3) {
+          // 7. All failed — show friendly French error
+          const errorMessages = {
+            NotAllowedError:      'Accès à la caméra refusé.\n\nAuthorisez la caméra dans les paramètres de votre navigateur (icône 🔒 dans la barre d\'adresse).',
+            NotFoundError:        'Aucune caméra détectée sur cet appareil.\n\nBranchez une webcam et réessayez.',
+            NotReadableError:     'La caméra est déjà utilisée par une autre application.\n\nFermez Zoom, Teams, ou tout autre onglet qui utilise la caméra, puis réessayez.',
+            OverconstrainedError: 'La caméra ne supporte pas la configuration demandée.\n\nEssayez de rafraîchir la page.',
+            SecurityError:        'Accès bloqué pour des raisons de sécurité.\n\nVérifiez que le site est accessible en HTTPS.',
+            AbortError:           'La caméra a été interrompue.\n\nRafraîchissez la page et réessayez.',
+          }
+          const msg = errorMessages[err3.name] || `Erreur caméra inattendue : ${err3.message}\n\nRafraîchissez la page ou essayez un autre navigateur.`
+          alert(msg)
+          throw err3
+        }
+      }
+    }
+
     localStreamRef.current = stream
     if (localVideoRef.current) localVideoRef.current.srcObject = stream
     return stream
   }
 
+  // ── Create call ─────────────────────────────────────────────
   const createCall = async () => {
     if (!canUse) { setShowPaywall(true); return }
     setStatus('calling')
-    const stream = await startCamera()
+
+    let stream
+    try {
+      stream = await startCamera()
+    } catch (e) {
+      setStatus('idle')
+      return
+    }
+
     const pc = new RTCPeerConnection(servers)
     pcRef.current = pc
     stream.getTracks().forEach(track => pc.addTrack(track, stream))
     pc.ontrack = (e) => { if (remoteVideoRef.current) remoteVideoRef.current.srcObject = e.streams[0] }
+
     const callDoc          = doc(collection(db, 'calls'))
     const offerCandidates  = collection(callDoc, 'offerCandidates')
     const answerCandidates = collection(callDoc, 'answerCandidates')
     setCallId(callDoc.id)
+
     pc.onicecandidate = (e) => { if (e.candidate) addDoc(offerCandidates, e.candidate.toJSON()) }
+
     const offer = await pc.createOffer()
     await pc.setLocalDescription(offer)
-    await setDoc(callDoc, { offer: { sdp: offer.sdp, type: offer.type }, status: 'waiting', createdBy: userData?.name || 'User' })
+    await setDoc(callDoc, {
+      offer: { sdp: offer.sdp, type: offer.type },
+      status: 'waiting',
+      createdBy: userData?.name || 'User',
+    })
+
     onSnapshot(collection(callDoc, 'messages'), (snap) => {
       setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => a.createdAt?.localeCompare(b.createdAt)))
     })
+
     onSnapshot(callDoc, (snap) => {
       const data = snap.data()
       if (!pc.currentRemoteDescription && data?.answer) {
         pc.setRemoteDescription(new RTCSessionDescription(data.answer))
-        setStatus('connected'); setFriendLeft(false)
+        setStatus('connected')
+        setFriendLeft(false)
       }
       if (data?.status === 'ended') {
-        setFriendLeft(true); setStatus('ended')
-        pc.close(); localStreamRef.current?.getTracks().forEach(t => t.stop())
+        setFriendLeft(true)
+        setStatus('ended')
+        pc.close()
+        localStreamRef.current?.getTracks().forEach(t => t.stop())
       }
     })
+
     onSnapshot(answerCandidates, (snap) => {
       snap.docChanges().forEach(ch => {
         if (ch.type === 'added') pc.addIceCandidate(new RTCIceCandidate(ch.doc.data()))
@@ -275,47 +354,77 @@ function CallComponent() {
     })
   }
 
+  // ── Join call ───────────────────────────────────────────────
   const joinCall = async () => {
     if (!callId.trim()) return
     if (!canUse) { setShowPaywall(true); return }
     setStatus('joining')
-    const stream = await startCamera()
+
+    let stream
+    try {
+      stream = await startCamera()
+    } catch (e) {
+      setStatus('idle')
+      return
+    }
+
     const pc = new RTCPeerConnection(servers)
     pcRef.current = pc
     stream.getTracks().forEach(track => pc.addTrack(track, stream))
     pc.ontrack = (e) => { if (remoteVideoRef.current) remoteVideoRef.current.srcObject = e.streams[0] }
+
     const callDoc          = doc(db, 'calls', callId)
     const answerCandidates = collection(callDoc, 'answerCandidates')
     const offerCandidates  = collection(callDoc, 'offerCandidates')
+
     pc.onicecandidate = (e) => { if (e.candidate) addDoc(answerCandidates, e.candidate.toJSON()) }
+
     const callData = (await getDoc(callDoc)).data()
     await pc.setRemoteDescription(new RTCSessionDescription(callData.offer))
     const answer = await pc.createAnswer()
     await pc.setLocalDescription(answer)
-    await setDoc(callDoc, { ...callData, answer: { type: answer.type, sdp: answer.sdp }, status: 'connected', joinedBy: userData?.name || 'User' })
+    await setDoc(callDoc, {
+      ...callData,
+      answer: { type: answer.type, sdp: answer.sdp },
+      status: 'connected',
+      joinedBy: userData?.name || 'User',
+    })
+
     onSnapshot(collection(callDoc, 'messages'), (snap) => {
       setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => a.createdAt?.localeCompare(b.createdAt)))
     })
+
     onSnapshot(callDoc, (snap) => {
       const data = snap.data()
-      if (data?.status === 'ended') { setFriendLeft(true); setStatus('ended'); pc.close(); localStreamRef.current?.getTracks().forEach(t => t.stop()) }
+      if (data?.status === 'ended') {
+        setFriendLeft(true)
+        setStatus('ended')
+        pc.close()
+        localStreamRef.current?.getTracks().forEach(t => t.stop())
+      }
     })
+
     onSnapshot(offerCandidates, (snap) => {
       snap.docChanges().forEach(ch => {
         if (ch.type === 'added') pc.addIceCandidate(new RTCIceCandidate(ch.doc.data()))
       })
     })
+
     setStatus('connected')
   }
 
+  // ── Chat ────────────────────────────────────────────────────
   const sendMessage = async () => {
     if (!newMessage.trim() || !callId) return
     await addDoc(collection(doc(db, 'calls', callId), 'messages'), {
-      text: newMessage, sender: userData?.name || 'User', createdAt: new Date().toISOString(),
+      text: newMessage,
+      sender: userData?.name || 'User',
+      createdAt: new Date().toISOString(),
     })
     setNewMessage('')
   }
 
+  // ── Media controls ──────────────────────────────────────────
   const toggleMic = () => {
     localStreamRef.current?.getAudioTracks().forEach(t => { t.enabled = !t.enabled })
     setMicOn(p => !p)
@@ -327,8 +436,13 @@ function CallComponent() {
   }
 
   const toggleFullscreen = () => {
-    if (!document.fullscreenElement) { document.documentElement.requestFullscreen(); setIsFullscreen(true) }
-    else { document.exitFullscreen(); setIsFullscreen(false) }
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen()
+      setIsFullscreen(true)
+    } else {
+      document.exitFullscreen()
+      setIsFullscreen(false)
+    }
   }
 
   const shareScreen = async () => {
@@ -348,10 +462,13 @@ function CallComponent() {
     }
   }
 
+  // ── End call ────────────────────────────────────────────────
   const endCall = async () => {
     stop()
     stopVoice()
-    if (callId) { try { await updateDoc(doc(db, 'calls', callId), { status: 'ended' }) } catch (e) {} }
+    if (callId) {
+      try { await updateDoc(doc(db, 'calls', callId), { status: 'ended' }) } catch (e) {}
+    }
     pcRef.current?.close()
     localStreamRef.current?.getTracks().forEach(t => t.stop())
     await endSession()
@@ -371,7 +488,7 @@ function CallComponent() {
   // ── Helper: derive bubble className ─────────────────────────
   const getBubbleClass = (msg) => {
     const isSelf = msg.sender === userData?.name
-    if (msg.isSign) return isSelf ? 'call-chat__msg-bubble--sign-self' : 'call-chat__msg-bubble--sign-other'
+    if (msg.isSign)  return isSelf ? 'call-chat__msg-bubble--sign-self'  : 'call-chat__msg-bubble--sign-other'
     if (msg.isVoice) return isSelf ? 'call-chat__msg-bubble--voice-self' : 'call-chat__msg-bubble--voice-other'
     return isSelf ? 'call-chat__msg-bubble--text-self' : 'call-chat__msg-bubble--text-other'
   }
@@ -523,7 +640,7 @@ function CallComponent() {
                   : <><Loader2 size={10} className="call-status-spin" /> En attente...</>
                 }
               </div>
-              
+
               {/* Remote voice subtitle */}
               {messages.filter(m => m.isVoice).slice(-1).map(msg =>
                 msg.sender !== userData?.name && (
@@ -533,7 +650,7 @@ function CallComponent() {
                   </div>
                 )
               )}
-              
+
               {/* Remote sign overlay */}
               {messages.filter(m => m.isSign).slice(-1).map(msg =>
                 msg.sender !== userData?.name && (
@@ -545,7 +662,7 @@ function CallComponent() {
                   </div>
                 )
               )}
-              
+
               {friendLeft && (
                 <div className="call-video-tile__left-overlay">
                   <p><PhoneMissed size={20} style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />L'ami a quitté</p>
@@ -600,7 +717,7 @@ function CallComponent() {
               icon={<HandMetal size={20} />}
               label={detecting ? 'Actif' : 'Détecter'}
             />
-            
+
             {/* Language selector with dropdown */}
             <div className="call-ctrl-wrapper">
               <button
@@ -612,14 +729,14 @@ function CallComponent() {
               </button>
               {showLangMenu && (
                 <div className="call-lang-menu" onClick={(e) => e.stopPropagation()}>
-                  <button 
-                    onClick={() => { changeLanguage('en-US'); setShowLangMenu(false); }}
+                  <button
+                    onClick={() => { changeLanguage('en-US'); setShowLangMenu(false) }}
                     className={selectedLang === 'en-US' ? 'call-lang-menu__active' : ''}
                   >
                     🇬🇧 English
                   </button>
-                  <button 
-                    onClick={() => { changeLanguage('ar-EG'); setShowLangMenu(false); }}
+                  <button
+                    onClick={() => { changeLanguage('ar-EG'); setShowLangMenu(false) }}
                     className={selectedLang === 'ar-EG' ? 'call-lang-menu__active' : ''}
                   >
                     🇸🇦 العربية
@@ -627,7 +744,7 @@ function CallComponent() {
                 </div>
               )}
             </div>
-            
+
             <CtrlBtn
               onClick={voiceActive ? stopVoice : startVoice}
               active={voiceActive}

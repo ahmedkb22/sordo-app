@@ -60,7 +60,12 @@ export default function Signup() {
       await sendEmailVerification(user)
       setEmailSent(true)
     } catch (err) {
-      setError(err.message)
+      const FIREBASE_ERRORS = {
+        'auth/email-already-in-use': 'Cet email est déjà utilisé.',
+         'auth/invalid-email': 'Email invalide.',
+         'auth/weak-password': 'Mot de passe trop faible.',
+        } 
+        setError(FIREBASE_ERRORS[err.code] || 'Une erreur est survenue.')
     } finally {
       setLoading(false)
     }

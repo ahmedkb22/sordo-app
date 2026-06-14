@@ -353,6 +353,11 @@
   text-decoration: underline;
 }
 
+
+
+
+
+
 /* ── Responsive ─────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .signup-main {

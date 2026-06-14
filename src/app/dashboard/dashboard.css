@@ -643,3 +643,43 @@
 .dash-academic-card--locked .dash-academic-card__features {
   opacity: 0.55;
 }
+
+
+/* Subscription card — actions row */
+.dash-sub-card__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.dash-sub-card__cta-link {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-decoration: none;
+  transition: opacity 0.2s;
+}
+.dash-sub-card__cta-link:hover { opacity: 0.75; }
+
+.dash-sub-card__cancel-btn {
+  background: none;
+  border: 1px solid rgba(248, 113, 113, 0.25);
+  color: #f87171;
+  padding: 0.3rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+  white-space: nowrap;
+}
+.dash-sub-card__cancel-btn:hover {
+  background: rgba(248, 113, 113, 0.08);
+  border-color: rgba(248, 113, 113, 0.5);
+}

@@ -24,10 +24,11 @@ import {
   Clock,
   ChevronRight,
   Infinity,
-  GraduationCap,   // ← Academic Mode icon
-  Lock,            // ← Lock icon for non-VIP
-  Building2,       // ← Enterprise icon
+  GraduationCap,
+  Lock,
+  Building2,
 } from 'lucide-react'
+import CancelSubscriptionModal from '@/components/CancelSubscriptionModal'
 import './dashboard.css'
 
 // ─────────────────────────────────────────────
@@ -42,7 +43,7 @@ const PLAN_META = {
     hoverBg: 'rgba(148,163,184,0.07)',
     hoverBorder: 'rgba(148,163,184,0.2)',
     icon: <Clock size={22} />,
-    limitMin: 60,          // 60 min/day for call & training
+    limitMin: 60,
   },
   plus: {
     name: 'Plus',
@@ -52,7 +53,7 @@ const PLAN_META = {
     hoverBg: 'rgba(96,165,250,0.08)',
     hoverBorder: 'rgba(96,165,250,0.3)',
     icon: <Zap size={22} />,
-    limitMin: 360,         // 6h/day
+    limitMin: 360,
   },
   pro: {
     name: 'Pro',
@@ -62,7 +63,7 @@ const PLAN_META = {
     hoverBg: 'rgba(167,139,250,0.08)',
     hoverBorder: 'rgba(167,139,250,0.3)',
     icon: <Star size={22} />,
-    limitMin: null,        // unlimited
+    limitMin: null,
   },
   vip: {
     name: 'VIP',
@@ -72,7 +73,7 @@ const PLAN_META = {
     hoverBg: 'rgba(251,191,36,0.07)',
     hoverBorder: 'rgba(251,191,36,0.3)',
     icon: <Crown size={22} />,
-    limitMin: null,        // unlimited + academic mode
+    limitMin: null,
   },
 }
 
@@ -83,6 +84,7 @@ export default function Dashboard() {
   const [notifications, setNotifications] = useState(0)
   const [onlineCount, setOnlineCount]     = useState(0)
   const [usageToday, setUsageToday]       = useState(0)
+  const [showCancel, setShowCancel]       = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -98,10 +100,8 @@ export default function Dashboard() {
           setUserData(data)
           setFriendsCount(data.friends?.length || 0)
 
-          // Load today's usage (total minutes call + training)
           const today = new Date().toISOString().slice(0, 10)
           const todayUsage = data.usage?.usageByDay?.[today] || {}
-          // Show combined usage minutes for the bar
           const totalTodayMin = (todayUsage.callMinutes || 0) + (todayUsage.entrainementMinutes || 0)
           setUsageToday(totalTodayMin)
 
@@ -258,14 +258,23 @@ export default function Dashboard() {
             pillBorder="rgba(124,58,237,0.25)"
           />
 
-          {/* ── ACADEMIC / ENTERPRISE MODE CARD ── */}
+          {/* Academic Mode Card */}
           <AcademicModeCard isVip={isVip} />
 
-          {/* Subscription card */}
+          {/* Subscription Card */}
           <SubscriptionCard
             planId={planId}
             planMeta={planMeta}
             usageToday={usageToday}
+            uid={user.uid}
+            showCancel={showCancel}
+            setShowCancel={setShowCancel}
+            onCancelled={() => {
+              setUserData(prev => ({
+                ...prev,
+                subscription: { ...prev.subscription, plan: 'free' }
+              }))
+            }}
           />
 
         </div>
@@ -276,8 +285,6 @@ export default function Dashboard() {
 
 // ─────────────────────────────────────────────────────────────────
 // ACADEMIC MODE CARD
-// VIP users → clickable (href="/academic")
-// Other users → locked, redirects to /pricing
 // ─────────────────────────────────────────────────────────────────
 function AcademicModeCard({ isVip }) {
   const href   = isVip ? '/academic' : '/pricing?plan=vip'
@@ -343,7 +350,7 @@ function AcademicModeCard({ isVip }) {
         }
       </p>
 
-      {/* Feature pills — coming soon */}
+      {/* Feature chips */}
       <div className="dash-academic-card__features">
         <span className="dash-academic-card__feature-chip">
           <Building2 size={10} strokeWidth={2} /> Multi-utilisateurs
@@ -368,95 +375,98 @@ function AcademicModeCard({ isVip }) {
   )
 }
 
-/* ── Subscription card ───────────────────────────────────────── */
-function SubscriptionCard({ planId, planMeta, usageToday }) {
-  const isUnlimited = planMeta.limitMin === null
-  // For free/plus: limit is per-mode. We show combined (call + training) vs 2× limit
+// ─────────────────────────────────────────────────────────────────
+// SUBSCRIPTION CARD
+// ─────────────────────────────────────────────────────────────────
+function SubscriptionCard({ planId, planMeta, usageToday, uid, showCancel, setShowCancel, onCancelled }) {
+  const isUnlimited   = planMeta.limitMin === null
   const combinedLimit = isUnlimited ? null : planMeta.limitMin * 2
-  const pct = isUnlimited ? 100 : Math.min(100, Math.round((usageToday / combinedLimit) * 100))
-  const used = Math.round(usageToday)
-  const limit = planMeta.limitMin
-
-  // Bar colour shifts red when above 80%
+  const pct      = isUnlimited ? 100 : Math.min(100, Math.round((usageToday / combinedLimit) * 100))
+  const used     = Math.round(usageToday)
+  const limit    = planMeta.limitMin
   const barColor = pct >= 80 ? '#f87171' : planMeta.color
 
   return (
-    <Link
-      href="/pricing"
-      className="dash-action-card dash-sub-card"
-      style={{ '--sub-color': planMeta.color, '--sub-border': planMeta.border }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.background  = planMeta.hoverBg
-        e.currentTarget.style.borderColor = planMeta.hoverBorder
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background  = 'rgba(255,255,255,0.03)'
-        e.currentTarget.style.borderColor = planMeta.border
-      }}
-    >
-      {/* Plan pill top-right */}
+    <>
       <div
-        className="dash-action-card__pill"
-        style={{
-          background: planMeta.bg,
-          border: `1px solid ${planMeta.border}`,
-          color: planMeta.color,
-        }}
+        className="dash-action-card dash-sub-card"
+        style={{ '--sub-color': planMeta.color, '--sub-border': planMeta.border, borderColor: planMeta.border }}
       >
-        {planMeta.icon && <span style={{ display: 'flex' }}>{planMeta.icon}</span>}
-        {planMeta.name}
-      </div>
-
-      {/* Icon */}
-      <div
-        className="dash-action-card__icon"
-        style={{ background: planMeta.bg, border: `1px solid ${planMeta.border}`, color: planMeta.color }}
-      >
-        <Crown size={24} strokeWidth={2} />
-      </div>
-
-      <h3 className="dash-action-card__title">Mon Abonnement</h3>
-
-      {/* Usage bar */}
-      <div className="dash-sub-card__usage">
-        <div className="dash-sub-card__usage-row">
-          <span className="dash-sub-card__usage-label">
-            {isUnlimited
-              ? 'Utilisation aujourd\'hui (illimitée)'
-              : `${used} min utilisées / ${limit} min par mode`
-            }
-          </span>
-          <span className="dash-sub-card__usage-pct" style={{ color: barColor }}>
-            {isUnlimited ? <Infinity size={14} /> : `${pct}%`}
-          </span>
+        {/* Plan pill */}
+        <div
+          className="dash-action-card__pill"
+          style={{ background: planMeta.bg, border: `1px solid ${planMeta.border}`, color: planMeta.color }}
+        >
+          {planMeta.icon && <span style={{ display: 'flex' }}>{planMeta.icon}</span>}
+          {planMeta.name}
         </div>
-        <div className="dash-sub-card__bar-track">
-          <div
-            className="dash-sub-card__bar-fill"
-            style={{
-              width: `${pct}%`,
-              background: barColor,
-              boxShadow: `0 0 8px ${barColor}88`,
-            }}
-          />
+
+        {/* Icon */}
+        <div
+          className="dash-action-card__icon"
+          style={{ background: planMeta.bg, border: `1px solid ${planMeta.border}`, color: planMeta.color }}
+        >
+          <Crown size={24} strokeWidth={2} />
+        </div>
+
+        <h3 className="dash-action-card__title">Mon Abonnement</h3>
+
+        {/* Usage bar */}
+        <div className="dash-sub-card__usage">
+          <div className="dash-sub-card__usage-row">
+            <span className="dash-sub-card__usage-label">
+              {isUnlimited
+                ? "Utilisation aujourd'hui (illimitée)"
+                : `${used} min utilisées / ${limit} min par mode`}
+            </span>
+            <span className="dash-sub-card__usage-pct" style={{ color: barColor }}>
+              {isUnlimited ? <Infinity size={14} /> : `${pct}%`}
+            </span>
+          </div>
+          <div className="dash-sub-card__bar-track">
+            <div
+              className="dash-sub-card__bar-fill"
+              style={{ width: `${pct}%`, background: barColor, boxShadow: `0 0 8px ${barColor}88` }}
+            />
+          </div>
+        </div>
+
+        {/* Actions row */}
+        <div className="dash-sub-card__actions">
+          <Link href="/pricing" className="dash-sub-card__cta-link" style={{ color: planMeta.color }}>
+            {planId === 'free' || planId === 'plus' ? 'Mettre à niveau' : 'Voir les plans'}
+            <ChevronRight size={13} strokeWidth={2.5} />
+          </Link>
+
+          {planId !== 'free' && (
+            <button
+              className="dash-sub-card__cancel-btn"
+              onClick={() => setShowCancel(true)}
+            >
+              Annuler l'abonnement
+            </button>
+          )}
         </div>
       </div>
 
-      {/* CTA */}
-      {planId === 'free' || planId === 'plus' ? (
-        <p className="dash-sub-card__cta" style={{ color: planMeta.color }}>
-          Mettre à niveau <ChevronRight size={13} strokeWidth={2.5} />
-        </p>
-      ) : (
-        <p className="dash-sub-card__cta" style={{ color: planMeta.color }}>
-          Voir les plans <ChevronRight size={13} strokeWidth={2.5} />
-        </p>
+      {showCancel && (
+        <CancelSubscriptionModal
+          uid={uid}
+          currentPlan={planId}
+          onClose={() => setShowCancel(false)}
+          onCancelled={() => {
+            onCancelled?.()
+            setShowCancel(false)
+          }}
+        />
       )}
-    </Link>
+    </>
   )
 }
 
-/* ── Reusable stat card ──────────────────────────────────────── */
+// ─────────────────────────────────────────────────────────────────
+// STAT CARD
+// ─────────────────────────────────────────────────────────────────
 function StatCard({ value, label, color, glowColor, dot, highlight, icon }) {
   return (
     <div className={`dash-stat-card ${highlight ? 'dash-stat-card--highlight' : 'dash-stat-card--default'}`}>
@@ -483,7 +493,9 @@ function StatCard({ value, label, color, glowColor, dot, highlight, icon }) {
   )
 }
 
-/* ── Reusable action card ──────────────────────────────────────── */
+// ─────────────────────────────────────────────────────────────────
+// ACTION CARD
+// ─────────────────────────────────────────────────────────────────
 function ActionCard({
   href, icon, iconBg, iconBorder, iconColor,
   title, description, badge,
@@ -491,14 +503,16 @@ function ActionCard({
   activePill, pillColor, pillBg, pillBorder,
 }) {
   return (
-    <Link href={href} className="dash-action-card"
+    <Link
+      href={href}
+      className="dash-action-card"
       onMouseEnter={(e) => {
-        e.currentTarget.style.background   = hoverBg
-        e.currentTarget.style.borderColor  = hoverBorder
+        e.currentTarget.style.background  = hoverBg
+        e.currentTarget.style.borderColor = hoverBorder
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.background   = 'rgba(255,255,255,0.03)'
-        e.currentTarget.style.borderColor  = 'rgba(255,255,255,0.07)'
+        e.currentTarget.style.background  = 'rgba(255,255,255,0.03)'
+        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)'
       }}
     >
       {badge && (

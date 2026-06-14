@@ -1,0 +1,69 @@
+.csm-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 999;
+}
+
+.csm-modal {
+  background: #12121a;
+  border: 1px solid rgba(248,113,113,0.25);
+  border-radius: 16px;
+  padding: 2rem;
+  width: min(440px, 92vw);
+  position: relative;
+  text-align: center;
+}
+
+.csm-close {
+  position: absolute; top: 1rem; right: 1rem;
+  background: none; border: none; cursor: pointer;
+  color: #64748b;
+}
+.csm-close:hover { color: #f8fafc; }
+
+.csm-icon { font-size: 2rem; margin-bottom: 1rem; }
+
+.csm-title {
+  color: #f8fafc; font-size: 1.25rem; font-weight: 700;
+  margin: 0 0 0.75rem;
+}
+
+.csm-desc {
+  color: #94a3b8; font-size: 0.9rem; line-height: 1.6;
+  margin: 0 0 1.5rem;
+}
+
+.csm-error {
+  color: #f87171; font-size: 0.85rem; margin-bottom: 1rem;
+}
+
+.csm-loading {
+  color: #94a3b8; padding: 2rem 0;
+}
+
+.csm-actions {
+  display: flex; flex-direction: column; gap: 0.75rem;
+}
+
+.csm-btn {
+  display: flex; align-items: center; justify-content: center; gap: 0.4rem;
+  padding: 0.75rem 1.25rem;
+  border-radius: 10px;
+  border: none; cursor: pointer;
+  font-size: 0.9rem; font-weight: 600;
+  transition: opacity 0.2s;
+  width: 100%;
+}
+.csm-btn:hover { opacity: 0.85; }
+
+.csm-btn--danger {
+  background: #f87171; color: #0a0a0f;
+}
+
+.csm-btn--ghost {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #f8fafc;
+}
