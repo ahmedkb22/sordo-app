@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
 import { Handshake, Zap, Lock, Globe, Play } from "lucide-react";
 import "./page.css";
@@ -5,6 +8,8 @@ import Footer from '../components/footer'
 
 
 export default function Home() {
+  const [isPlaying, setIsPlaying] = useState(false);
+
   return (
     <main className="home-main">
 
@@ -41,12 +46,30 @@ export default function Home() {
           </Link>
         </div>
 
-        {/* Media placeholder */}
+        {/* Media section */}
         <div className="hero-media">
-          <div className="hero-media-icon">
-            <Play size={24} strokeWidth={1.5} />
-          </div>
-          Votre vidéo / photo de démo ici
+          {isPlaying ? (
+            <video
+              className="hero-video"
+              controls
+              autoPlay
+              playsInline
+            >
+              <source src="/videos/sordo.mov" type="video/mp4" />
+              Votre navigateur ne supporte pas la balise vidéo.
+            </video>
+          ) : (
+            <button
+              className="hero-media-placeholder"
+              onClick={() => setIsPlaying(true)}
+              aria-label="Lancer la vidéo de démonstration"
+            >
+              <span className="hero-media-icon">
+                <Play size={24} strokeWidth={1.5} />
+              </span>
+              Voir la démo
+            </button>
+          )}
         </div>
 
       </section>
